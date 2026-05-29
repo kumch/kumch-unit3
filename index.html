@@ -497,7 +497,7 @@
     </div>
     <button class="btn-primary" id="btn-login" onclick="doLogin()">Sign In</button>
     <button id="btn-pwa-install" onclick="installPWA()"
-      style="display:none; width:100%; margin-top:10px; padding:14px;
+      style="display:block; width:100%; margin-top:10px; padding:14px;
       background:#10B981; color:white; border:none; border-radius:10px;
       font-family:'Times New Roman',serif; font-size:15px; font-weight:700;
       cursor:pointer; min-height:52px">
@@ -3135,6 +3135,9 @@
     if(pwaPrompt){
       pwaPrompt.prompt();
       pwaPrompt.userChoice.then(function(){ pwaPrompt = null; });
+    } else {
+      // Show manual install instructions
+      alert('To install:\n1. Tap the 3-dot menu in Chrome\n2. Tap "Add to Home Screen"\n3. Tap "Add"');
     }
   }
 </script>
