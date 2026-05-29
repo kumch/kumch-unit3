@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="manifest" href="/kumch-unit3/manifest.json">
+  <meta name="theme-color" content="#1E3A5F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="KuMCH Unit 3">
+  <link rel="apple-touch-icon" href="/kumch-unit3/icon-192.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>KuMCH Unit 3</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -489,6 +496,13 @@
       </div>
     </div>
     <button class="btn-primary" id="btn-login" onclick="doLogin()">Sign In</button>
+    <button id="btn-pwa-install" onclick="installPWA()"
+      style="display:none; width:100%; margin-top:10px; padding:14px;
+      background:#10B981; color:white; border:none; border-radius:10px;
+      font-family:'Times New Roman',serif; font-size:15px; font-weight:700;
+      cursor:pointer; min-height:52px">
+      📲 Install App on This Device
+    </button>
     <div class="auth-err" id="login-err" style="margin-top:12px"></div>
   </div>
 </div>
@@ -3077,6 +3091,52 @@
 
   // Boot
   init();
+
+  // ── PWA Service Worker Registration ──
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('/kumch-unit3/service-worker.js')
+        .then(function(reg){
+          console.log('SW registered:', reg.scope);
+          setInterval(function(){ reg.update(); }, 30 * 60 * 1000);
+          reg.addEventListener('updatefound', function(){
+            var newSW = reg.installing;
+            newSW.addEventListener('statechange', function(){
+              if(newSW.state === 'installed' && navigator.serviceWorker.controller){
+                toast('New update available! Refreshing...', 'ok');
+                setTimeout(function(){
+                  newSW.postMessage({type:'SKIP_WAITING'});
+                  window.location.reload();
+                }, 2000);
+              }
+            });
+          });
+        })
+        .catch(function(err){ console.warn('SW failed:', err); });
+    });
+  }
+
+  var pwaPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    pwaPrompt = e;
+    var btn = document.getElementById('btn-pwa-install');
+    if(btn) btn.style.display = 'block';
+  });
+
+  window.addEventListener('appinstalled', function(){
+    pwaPrompt = null;
+    var btn = document.getElementById('btn-pwa-install');
+    if(btn) btn.style.display = 'none';
+    toast('App installed successfully! ✓', 'ok');
+  });
+
+  function installPWA(){
+    if(pwaPrompt){
+      pwaPrompt.prompt();
+      pwaPrompt.userChoice.then(function(){ pwaPrompt = null; });
+    }
+  }
 </script>
 </body>
 </html>
