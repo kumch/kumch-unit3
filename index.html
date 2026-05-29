@@ -1,0 +1,3082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KuMCH Unit 3</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Times New Roman', Times, serif; }
+    h1, h2, h3 { font-family: 'Times New Roman', Times, serif; }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      background: #F0F4FF; min-height: 100vh; color: #111827;
+      -webkit-font-smoothing: antialiased; font-size: 16px; line-height: 1.6;
+    }
+    button { cursor: pointer; border: none; background: none; font-family: 'Times New Roman', Times, serif; outline: none; }
+    input, textarea, select { font-family: 'Times New Roman', Times, serif; outline: none; }
+    img { display: block; }
+
+    /* ── Pages ── */
+    .page { display: none; min-height: 100vh; }
+    .page.active { display: block; }
+    #pg-login.active, #pg-signup.active { display: flex; align-items: flex-start; justify-content: center; padding: 24px; min-height: 100vh; background: #F0F4FF; }
+
+    /* ── Overlay/spinner ── */
+    #overlay { position: fixed; inset: 0; background: rgba(240,244,255,.82); display: none; align-items: center; justify-content: center; z-index: 1200; }
+    #overlay.on { display: flex; }
+    .spin { width: 44px; height: 44px; border: 4px solid #DBEAFE; border-top-color: #3B82F6; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1F2937; color: #fff; padding: 12px 22px; border-radius: 14px; font-size: 15px; font-weight: 500; z-index: 1300; transition: transform .28s; max-width: 92vw; text-align: center; pointer-events: none; }
+    #toast.on  { transform: translateX(-50%) translateY(0); }
+    #toast.ok  { background: #065F46; }
+    #toast.err { background: #991B1B; }
+
+    /* ── Photo modal ── */
+    #photo-modal { position: fixed; inset: 0; background: rgba(0,0,0,.9); display: none; align-items: center; justify-content: center; z-index: 1400; padding: 20px; cursor: pointer; }
+    #photo-modal.on { display: flex; }
+    #modal-img { max-width: 100%; max-height: 88vh; border-radius: 10px; cursor: default; }
+    #modal-close { position: fixed; top: 16px; right: 16px; background: rgba(255,255,255,.18); color: #fff; width: 42px; height: 42px; border-radius: 50%; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+
+    /* ── Modals base ── */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: flex-start; justify-content: center; z-index: 900; padding: 16px; overflow-y: auto; }
+    .modal-bg.on { display: flex; }
+    .modal-card { background: #fff; border-radius: 18px; padding: 22px; width: 100%; max-width: 520px; margin: auto; box-shadow: 0 8px 40px rgba(0,0,0,.18); max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 20px; font-weight: 800; color: #1E3A5F; margin-bottom: 4px; }
+    .modal-sub   { font-size: 13px; color: #6B7280; margin-bottom: 18px; }
+    .modal-close { float: right; font-size: 20px; color: #9CA3AF; padding: 2px 6px; }
+    .modal-close:hover { color: #374151; }
+
+    /* ── Badges ── */
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+    .b-nurse    { background: #DBEAFE; color: #1D4ED8; }
+    .b-intern   { background: #EDE9FE; color: #6D28D9; }
+    .b-midlevel { background: #D1FAE5; color: #065F46; }
+
+    /* ── App header ── */
+    .hdr { background: #fff; box-shadow: 0 1px 8px rgba(0,0,0,.07); position: sticky; top: 0; z-index: 50; }
+    .hdr-main { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .hdr-brand { display: flex; align-items: center; gap: 8px; }
+    .hdr-icon  { font-size: 22px; }
+    .hdr-name  { display: flex; flex-direction: column; gap: 1px; }
+    .hdr-l1    { font-size: 16px; font-weight: 700; color: #1E3A5F; line-height: 1.2; }
+    .hdr-l2    { font-size: 12px; font-weight: 400; color: #6B7280; line-height: 1.2; }
+    .hdr-l3    { font-size: 13px; font-weight: 700; color: #3B82F6; line-height: 1.2; }
+    .hdr-right { display: flex; align-items: center; gap: 8px; }
+    .hdr-user  { text-align: right; }
+    .hdr-uname { font-size: 13px; font-weight: 600; color: #374151; }
+    .critical-alert { display: flex; align-items: center; gap: 5px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 700; color: #DC2626; }
+    .pulse-dot { width: 8px; height: 8px; background: #EF4444; border-radius: 50%; animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.3); } }
+    .btn-sm { background: #F3F4F6; color: #374151; padding: 7px 13px; border-radius: 8px; font-size: 16px; font-weight: 600; min-height: 52px; transition: background .15s; }
+    .btn-sm:hover { background: #E5E7EB; }
+
+    /* ══ Login / Signup card ══ */
+    .auth-card { background: #fff; border-radius: 20px; padding: 36px 28px; width: 100%; max-width: 400px; box-shadow: 0 4px 28px rgba(0,0,0,.09); margin-top: 16px; }
+    .auth-hero  { text-align: center; margin-bottom: 26px; }
+    .auth-logo  { width: 68px; height: 68px; background: #EFF6FF; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 34px; margin: 0 auto 12px; box-shadow: 0 2px 14px rgba(59,130,246,.15); }
+    .auth-title { font-size: 24px; font-weight: 800; color: #1E3A5F; }
+    .auth-sub   { font-size: 14px; color: #6B7280; margin-top: 4px; }
+    .auth-err   { background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 10px; padding: 12px 14px; font-size: 14px; color: #DC2626; margin-bottom: 14px; display: none; }
+    .auth-err.on { display: block; }
+    .auth-ok    { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 14px; font-size: 14px; color: #065F46; text-align: center; display: none; }
+    .auth-ok.on { display: block; }
+
+    .fg { margin-bottom: 15px; }
+    .fl { display: block; font-size: 14px; font-weight: 700; color: #374151; margin-bottom: 5px; }
+    .fi { width: 100%; padding: 14px; border: 1.5px solid #E5E7EB; border-radius: 10px; font-size: 16px; color: #111827; background: #F9FAFB; min-height: 52px; transition: border-color .18s; }
+    .fi:focus { border-color: #3B82F6; background: #fff; }
+    .fi-sel { min-height: 50px; -webkit-appearance: none; }
+
+    .btn-primary { width: 100%; padding: 14px; background: #3B82F6; color: #fff; border-radius: 12px; font-size: 16px; font-weight: 700; min-height: 54px; box-shadow: 0 4px 14px rgba(59,130,246,.28); transition: background .15s; }
+    .btn-primary:hover:not(:disabled) { background: #2563EB; }
+    .btn-primary:disabled { background: #93C5FD; box-shadow: none; cursor: not-allowed; }
+    .btn-green { background: #10B981; box-shadow: 0 4px 12px rgba(16,185,129,.28); }
+    .btn-green:hover:not(:disabled) { background: #059669; }
+
+    .link-btn { color: #3B82F6; font-size: 14px; font-weight: 600; text-decoration: underline; background: none; border: none; cursor: pointer; padding: 0; }
+    .link-btn:hover { color: #2563EB; }
+    .auth-footer { text-align: center; margin-top: 16px; font-size: 14px; color: #6B7280; }
+
+    /* ══ Beds page ══ */
+    .pg-wrap { padding: 16px; }
+    .stats { background: #fff; border-radius: 12px; padding: 14px 18px; margin-bottom: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+    .stat-item { text-align: center; }
+    .dash-section { background: white; border-radius: 12px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    .dash-section-hdr { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; cursor: pointer; font-weight: 700; font-size: 16px; color: #1E3A5F; user-select: none; border-bottom: 1px solid #F3F4F6; }
+    .dash-section-hdr:hover { background: #F8FAFF; }
+    .dash-section-body { padding: 8px 12px 14px; }
+    .dash-section-arrow { transition: transform 0.25s; font-size: 13px; color: #9CA3AF; }
+    .dash-section.collapsed .dash-section-arrow { transform: rotate(-90deg); }
+    .dash-section.collapsed .dash-section-body { display: none; }
+    .dash-section-body .stats { background: transparent; box-shadow: none; border-radius: 0; margin-bottom: 0; padding: 6px 6px; }
+    .stat-n { font-size: 28px; font-weight: 800; color: #1E3A5F; }
+    .stat-n.red { color: #EF4444; }
+    .stat-l { font-size: 14px; color: #9CA3AF; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+    .add-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+    .legend  { display: flex; gap: 12px; flex-wrap: wrap; }
+    .li { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #6B7280; }
+    .ld { width: 12px; height: 12px; border-radius: 3px; }
+    .btn-add { display: inline-flex; align-items: center; gap: 6px; background: #3B82F6; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 16px; font-weight: 700; min-height: 52px; box-shadow: 0 3px 10px rgba(59,130,246,.25); transition: background .15s; }
+    .btn-add:hover { background: #2563EB; }
+
+    .bed-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    @media (max-width: 520px) { .bed-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; } }
+    @media (max-width: 340px) { .bed-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .bcard { border-radius: 12px; padding: 10px 6px; cursor: pointer; min-height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; box-shadow: 0 1px 5px rgba(0,0,0,.07); border: 2px solid transparent; transition: transform .14s, box-shadow .14s; -webkit-tap-highlight-color: transparent; }
+    .bcard:hover  { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+    .bcard:active { transform: scale(.96); }
+    .bcard.occ  { background: #D1FAE5; border-color: #6EE7B7; }
+    .bcard.emp  { background: #F9FAFB; border-color: #E5E7EB; }
+    .bcard.crit { background: #FEF2F2; border-color: #EF4444; }
+    .bc-n { font-size: 14px; font-weight: 700; color: #6B7280; letter-spacing: .5px; }
+    .bc-i { font-size: 18px; }
+    .bc-p { font-size: 16px; font-weight: 700; color: #065F46; line-height: 1.3; word-break: break-word; }
+    .bc-p.crit { color: #DC2626; }
+    .bc-reg { font-size: 10px; color: #6B7280; }
+    .bc-e { font-size: 11px; color: #9CA3AF; font-weight: 500; }
+    .crit-badge { background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; }
+
+    /* ══ Add patient modal ══ */
+    .step-indicator { display: flex; gap: 6px; margin-bottom: 16px; }
+    .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #E5E7EB; transition: background .2s; }
+    .step-dot.on { background: #3B82F6; }
+    .empty-bed-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
+    .bed-sel-btn { padding: 10px 4px; border-radius: 8px; font-size: 16px; font-weight: 700; color: #374151; background: #F9FAFB; border: 2px solid #E5E7EB; text-align: center; min-height: 52px; transition: all .14s; }
+    .bed-sel-btn:hover { border-color: #3B82F6; background: #EFF6FF; color: #3B82F6; }
+    .bed-sel-btn.sel  { border-color: #3B82F6; background: #EFF6FF; color: #3B82F6; }
+
+    .sex-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-sex { padding: 9px 18px; border-radius: 8px; font-size: 16px; font-weight: 600; min-height: 52px; border: 2px solid #E5E7EB; background: #F9FAFB; color: #6B7280; transition: all .14s; }
+    .btn-sex.on { border-color: #3B82F6; background: #EFF6FF; color: #3B82F6; }
+
+    .modal-nav { display: flex; gap: 8px; margin-top: 16px; }
+    .btn-next { flex: 1; padding: 13px; background: #3B82F6; color: #fff; border-radius: 10px; font-size: 16px; font-weight: 700; min-height: 52px; transition: background .15s; }
+    .btn-next:hover:not(:disabled) { background: #2563EB; }
+    .btn-next:disabled { background: #93C5FD; cursor: not-allowed; }
+    .btn-prev { padding: 13px 20px; background: #F3F4F6; color: #374151; border-radius: 10px; font-size: 16px; font-weight: 700; min-height: 52px; transition: background .15s; }
+    .btn-prev:hover { background: #E5E7EB; }
+
+    /* ══ Patient detail ══ */
+    .det-wrap { padding: 16px; max-width: 720px; margin: 0 auto; }
+    .btn-back { display: inline-flex; align-items: center; gap: 5px; color: #3B82F6; font-size: 16px; font-weight: 600; padding: 8px 0; margin-bottom: 12px; min-height: 52px; }
+    .btn-back:hover { color: #2563EB; }
+    .det-hdr { background: #fff; border-radius: 14px; padding: 18px 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .det-bed  { font-size: 11px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .5px; }
+    .det-pt   { font-size: 22px; font-weight: 800; color: #111827; margin-top: 3px; }
+    .det-lu   { font-size: 12px; color: #9CA3AF; margin-top: 4px; }
+    .det-actions { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+
+    .btn-critical { background: #F9FAFB; color: #374151; padding: 9px 14px; border-radius: 10px; font-size: 16px; font-weight: 700; min-height: 52px; border: 1.5px solid #E5E7EB; transition: all .15s; }
+    .btn-critical.active { background: #FEF2F2; color: #DC2626; border-color: #FCA5A5; }
+    .btn-discharge { background: #ECFDF5; color: #065F46; padding: 9px 14px; border-radius: 10px; font-size: 16px; font-weight: 700; min-height: 52px; border: 1.5px solid #6EE7B7; transition: background .15s; }
+    .btn-discharge:hover { background: #D1FAE5; }
+
+    /* ── Collapsible sections ── */
+    .sec { background: #fff; border-radius: 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden; }
+    .sec-hdr { display: flex; align-items: center; justify-content: space-between; padding: 16px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .sec-hdr:hover { background: #FAFAFA; }
+    .sec-left  { display: flex; align-items: center; gap: 8px; }
+    .sec-em    { font-size: 19px; }
+    .sec-ttl   { font-size: 18px; font-weight: 700; color: #1E3A5F; }
+    .sec-arrow { font-size: 11px; color: #9CA3AF; transition: transform .25s; display: inline-block; margin-left: 3px; }
+    .sec-arrow.dn { transform: rotate(-90deg); }
+    .sec-btns  { display: flex; gap: 6px; flex-shrink: 0; }
+    .sec-summary { display: none; padding: 0 16px 13px; font-size: 13px; color: #6B7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sec-summary.on { display: block; }
+    .sec-body  { max-height: 3000px; overflow: hidden; transition: max-height .35s ease; padding: 0 16px 16px; }
+    .sec-body.coll { max-height: 0; padding-bottom: 0; }
+
+    .btn-edit   { background: #EFF6FF; color: #3B82F6; padding: 7px 14px; border-radius: 8px; font-size: 16px; font-weight: 700; min-height: 52px; transition: background .15s; }
+    .btn-edit:hover { background: #DBEAFE; }
+    .btn-save   { background: #10B981; color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 16px; font-weight: 700; min-height: 52px; transition: background .15s; }
+    .btn-save:hover:not(:disabled) { background: #059669; }
+    .btn-save:disabled { background: #6EE7B7; cursor: not-allowed; }
+    .btn-cancel { background: #F3F4F6; color: #6B7280; padding: 8px 16px; border-radius: 8px; font-size: 16px; font-weight: 700; min-height: 52px; transition: background .15s; }
+    .btn-cancel:hover { background: #E5E7EB; }
+    .save-row   { display: flex; gap: 8px; margin-top: 14px; }
+
+    /* Fields */
+    .field   { margin-bottom: 13px; }
+    .f-lbl   { font-size: 14px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+    .f-val   { font-size: 16px; color: #111827; line-height: 1.6; min-height: 20px; }
+    .f-nil   { color: #C4CAD4; font-style: italic; }
+    .divider { height: 1px; background: #F3F4F6; margin: 11px 0; }
+    .f-inp   { width: 100%; padding: 14px; border: 1.5px solid #E5E7EB; border-radius: 10px; font-size: 16px; color: #111827; background: #F9FAFB; min-height: 52px; transition: border-color .18s; }
+    .f-inp:focus { border-color: #3B82F6; background: #fff; }
+    .f-ta    { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+    /* Photo controls */
+    .photo-ctrl { margin-top: 9px; }
+    .photo-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-ph { display: inline-flex; align-items: center; gap: 5px; background: #F5F3FF; color: #7C3AED; border: 1.5px dashed #C4B5FD; border-radius: 10px; padding: 8px 14px; font-size: 16px; font-weight: 600; min-height: 52px; transition: background .15s; }
+    .btn-ph:hover { background: #EDE9FE; }
+    .thumb-wrap { display: none; margin-top: 9px; position: relative; }
+    .thumb-wrap.on { display: inline-block; }
+    .thumb { max-width: 100%; max-height: 160px; border-radius: 10px; border: 1.5px solid #E5E7EB; cursor: pointer; }
+    .thumb:hover { opacity: .88; }
+    .btn-rm { position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,.55); color: #fff; width: 26px; height: 26px; border-radius: 50%; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    .view-thumb { max-width: 100%; max-height: 180px; border-radius: 10px; border: 1.5px solid #E5E7EB; margin-top: 8px; cursor: pointer; }
+    .view-thumb:hover { opacity: .88; }
+
+    /* Signup photo */
+    .signup-photo-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #E5E7EB; margin-top: 8px; }
+
+    /* ══ Discharge modal ══ */
+    .disc-types { display: flex; flex-direction: column; gap: 9px; margin-bottom: 6px; }
+    .disc-type-btn { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; border: 2px solid #E5E7EB; background: #F9FAFB; font-size: 16px; font-weight: 600; color: #374151; text-align: left; transition: all .15s; min-height: 60px; }
+    .disc-type-btn:hover, .disc-type-btn.sel { border-color: #10B981; background: #ECFDF5; color: #065F46; }
+    .disc-icon  { font-size: 24px; flex-shrink: 0; }
+    .disc-ttl   { font-size: 14px; font-weight: 700; }
+    .disc-desc  { font-size: 12px; color: #6B7280; margin-top: 1px; font-weight: 400; }
+    .disc-step  { display: none; }
+    .disc-step.on { display: block; }
+    .disc-warn  { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 11px 13px; font-size: 13px; color: #92400E; margin-bottom: 13px; }
+    .disc-warn.red { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
+    .disc-check-row { display: flex; align-items: center; gap: 9px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 12px 14px; cursor: pointer; }
+    .disc-chk { width: 18px; height: 18px; cursor: pointer; accent-color: #10B981; }
+    .disc-chk-lbl { font-size: 14px; font-weight: 600; color: #065F46; cursor: pointer; }
+    .btn-disc-confirm { width: 100%; padding: 14px; background: #10B981; color: #fff; border-radius: 12px; font-size: 16px; font-weight: 700; min-height: 52px; box-shadow: 0 3px 10px rgba(16,185,129,.3); transition: background .15s; margin-top: 8px; }
+    .btn-disc-confirm:hover:not(:disabled) { background: #059669; }
+    .btn-disc-confirm:disabled { background: #6EE7B7; cursor: not-allowed; }
+    .btn-disc-back { width: 100%; padding: 11px; background: #F3F4F6; color: #374151; border-radius: 10px; font-size: 16px; font-weight: 700; margin-top: 7px; transition: background .15s; }
+    .btn-disc-back:hover { background: #E5E7EB; }
+
+    /* ══ Print ══ */
+    #print-area { display: none; }
+    @media print {
+      @page { margin: 10mm; margin-top: 15mm; }
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
+    }
+
+    /* ── Discharge photo inline error ── */
+    .disc-photo-err { display: none; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #DC2626; margin-bottom: 10px; font-weight: 600; }
+    .disc-photo-err.on { display: block; }
+
+    /* ── Toast mobile readable ── */
+    @media (max-width: 480px) { #toast { font-size: 15px; padding: 13px 20px; min-width: 220px; } }
+
+    /* ── Password toggle wrapper ── */
+    .pw-wrap { position: relative; }
+    .pw-eye { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 17px; color: #9CA3AF; min-width: 36px; min-height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: none; border: none; cursor: pointer; }
+    .pw-eye:hover { color: #374151; }
+
+    /* ── Ticker ribbon ── */
+    #ticker-wrap { overflow: hidden; padding: 7px 0; display: none; background: #DC2626; }
+    #ticker-wrap.on { display: block; }
+    .ticker-track { display: flex; white-space: nowrap; animation: tickermove 35s linear infinite; }
+    .ticker-inner { color: #fff; font-size: 13px; font-weight: 700; padding-right: 100px; display: inline-block; }
+    @keyframes tickermove { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+
+    /* ── Clickable stat items ── */
+    .stat-item { cursor: pointer; padding: 20px 10px; border-radius: 8px; transition: background .15s; -webkit-tap-highlight-color: transparent; }
+    .stat-item:hover { background: rgba(59,130,246,.07); }
+    .stat-item:active { background: rgba(59,130,246,.14); }
+
+    /* ── Crit/Stats thumbnail modal ── */
+    .cth-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; max-height: 60vh; overflow-y: auto; padding-bottom: 4px; }
+    @media (min-width: 400px) { .cth-grid { grid-template-columns: repeat(4, 1fr); } }
+    .cth-card { border-radius: 12px; padding: 10px 6px; cursor: pointer; min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; box-shadow: 0 1px 5px rgba(0,0,0,.07); border: 2px solid transparent; transition: transform .14s, box-shadow .14s; -webkit-tap-highlight-color: transparent; }
+    .cth-card.crit { background: #FEF2F2; border-color: #EF4444; }
+    .cth-card.occ  { background: #D1FAE5; border-color: #6EE7B7; }
+    .cth-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+    .cth-card:active { transform: scale(.96); }
+    .cth-empty { text-align: center; padding: 24px; color: #9CA3AF; font-size: 14px; }
+
+    /* ── Sidebar ── */
+    #sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; background: #fff; z-index: 300; box-shadow: 2px 0 16px rgba(0,0,0,.1); transform: translateX(-240px); transition: transform .28s; display: flex; flex-direction: column; overflow-y: auto; }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 299; display: none; }
+    #sidebar-backdrop.on { display: block; }
+    .sb-logo { display: flex; align-items: center; gap: 10px; padding: 18px 18px 14px; border-bottom: 1px solid #F3F4F6; }
+    .sb-logo-icon { font-size: 22px; flex-shrink: 0; }
+    .sb-nav { display: flex; flex-direction: column; gap: 3px; padding: 10px; flex: 1; }
+    .sb-item { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 10px; font-size: 16px; font-weight: 600; color: #374151; cursor: pointer; min-height: 52px; transition: background .15s; -webkit-tap-highlight-color: transparent; }
+    .sb-item:hover { background: #F3F4F6; }
+    .sb-item.active { background: #EFF6FF; color: #3B82F6; }
+    .sb-icon { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+    .sb-divider { height: 1px; background: #F3F4F6; margin: 5px 10px; }
+    .sb-notif-badge { margin-left: auto; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px; display: none; align-items: center; justify-content: center; }
+    .sb-notif-badge.on { display: flex; }
+    .hamburger { font-size: 22px; min-width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #374151; cursor: pointer; flex-shrink: 0; }
+    .hamburger:hover { background: #F3F4F6; }
+
+    /* Hide sidebar/hamburger on auth pages (no app-mode) */
+    body:not(.app-mode) #sidebar { display: none !important; }
+    body:not(.app-mode) #sidebar-backdrop { display: none !important; }
+    body:not(.app-mode) .hamburger { display: none !important; }
+
+    /* Desktop: sidebar always visible, pages shift right */
+    @media (min-width: 769px) {
+      #sidebar { transform: translateX(0) !important; }
+      #sidebar-backdrop { display: none !important; }
+      .hamburger { display: none !important; }
+      body.app-mode #pg-beds,
+      body.app-mode #pg-all-patients,
+      body.app-mode #pg-search,
+      body.app-mode #pg-notifications,
+      body.app-mode #pg-export,
+      body.app-mode #pg-detail { margin-left: 240px; }
+    }
+
+    /* ── All Patients Card Grid ── */
+    .apt-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+    @media (min-width: 520px) { .apt-card-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 768px) { .apt-card-grid { grid-template-columns: repeat(5, 1fr); } }
+    .apt-card { border-radius: 12px; padding: 8px; cursor: pointer; min-height: 100px; display: flex; flex-direction: column; box-shadow: 0 1px 5px rgba(0,0,0,.07); border: 2px solid transparent; transition: transform .14s, box-shadow .14s; -webkit-tap-highlight-color: transparent; }
+    .apt-card:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+    .apt-card:active { transform: scale(.96); }
+    .apt-card.occ  { background: #D1FAE5; border-color: #6EE7B7; }
+    .apt-card.emp  { background: #F9FAFB; border-color: #E5E7EB; }
+    .apt-card.crit { background: #FEF2F2; border-color: #EF4444; }
+    .apt-card-bed  { font-size: 10px; font-weight: 700; color: #6B7280; letter-spacing: .5px; }
+    .apt-card-name { font-size: 11px; font-weight: 700; color: #065F46; line-height: 1.3; margin-top: 3px; word-break: break-word; }
+    .apt-card-name.crit { color: #DC2626; }
+    .apt-card-addr { font-size: 10px; color: #6B7280; margin-top: 2px; line-height: 1.3; }
+    .apt-card-dx   { font-size: 10px; color: #374151; font-style: italic; margin-top: 2px; line-height: 1.3; }
+    .apt-card-empty { font-size: 11px; color: #9CA3AF; font-style: italic; margin: auto; text-align: center; }
+    .apt-card-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+    .apt-card-crit-badge { background: #EF4444; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 5px; }
+    .apt-card-ongoing-badge { background: #FEF3C7; color: #92400E; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 5px; }
+
+    /* ── Ward section headers ── */
+    .ward-sec { margin-bottom: 20px; }
+    .ward-sec-hdr { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800; color: #1E3A5F; padding: 8px 4px; border-bottom: 2px solid #E5E7EB; margin-bottom: 10px; }
+    .ward-badge { font-size: 12px; color: #9CA3AF; font-weight: 500; margin-left: auto; }
+    .bed-sel-occ { background: #F3F4F6 !important; border-color: #E5E7EB !important; color: #9CA3AF !important; cursor: not-allowed !important; opacity: .7; }
+    .bed-sel-occ .bso-name { font-size: 9px; font-weight: 500; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; margin-top: 1px; }
+
+    /* ── Bell badge ── */
+    .bell-wrap { position: relative; display: inline-flex; }
+    .bell-btn { font-size: 19px; min-width: 38px; min-height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #374151; }
+    .bell-btn:hover { background: #F3F4F6; }
+    .bell-count { position: absolute; top: -1px; right: -1px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; min-width: 17px; height: 17px; border-radius: 9px; padding: 0 3px; display: none; align-items: center; justify-content: center; line-height: 1; }
+    .bell-count.on { display: flex; }
+
+    /* ── Notifications page ── */
+    .notif-list { display: flex; flex-direction: column; gap: 8px; }
+    .notif-item { background: #fff; border-radius: 12px; padding: 16px; display: flex; gap: 12px; cursor: pointer; border-left: 4px solid #E5E7EB; transition: background .15s; -webkit-tap-highlight-color: transparent; min-height: 64px; align-items: flex-start; }
+    .notif-item:hover { background: #F3F4F6; }
+    .notif-item.unread { background: #fff; }
+    .notif-item.read { background: #F9FAFB; }
+    .notif-item.t-info { border-left-color: #3B82F6; }
+    .notif-item.t-ongoing { border-left-color: #F59E0B; }
+    .notif-item.t-critical { border-left-color: #EF4444; }
+    .notif-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-msg { font-size: 15px; color: #111827; line-height: 1.6; }
+    .notif-item.unread .notif-msg { font-weight: 700; }
+    .notif-sub { font-size: 12px; color: #6B7280; margin-top: 3px; }
+    .notif-time { font-size: 11px; color: #9CA3AF; margin-top: 2px; }
+    .notif-empty { text-align: center; padding: 44px 20px; color: #9CA3AF; font-size: 15px; }
+    .notif-unread-dot { width: 8px; height: 8px; background: #3B82F6; border-radius: 50%; flex-shrink: 0; align-self: center; }
+
+    /* ── Search page ── */
+    .srch-input-wrap { position: relative; margin-bottom: 16px; }
+    .srch-input { width: 100%; padding: 14px 46px 14px 18px; border: 2px solid #E5E7EB; border-radius: 14px; font-size: 16px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.06); transition: border-color .18s; }
+    .srch-input:focus { border-color: #3B82F6; }
+    .srch-clear { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #9CA3AF; padding: 7px; cursor: pointer; display: none; background: none; border: none; border-radius: 50%; }
+    .srch-clear:hover { background: #F3F4F6; color: #374151; }
+    .srch-clear.on { display: block; }
+    .srch-hint { text-align: center; padding: 44px 20px; color: #9CA3AF; font-size: 14px; }
+    .srch-none { text-align: center; padding: 44px 20px; color: #9CA3AF; font-size: 15px; }
+    .srch-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    @media (max-width: 520px) { .srch-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; } }
+    @media (max-width: 340px) { .srch-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    /* ── Ongoing toggle button ── */
+    .btn-ongoing { display:block; width:100%; padding:10px 14px; border-radius:10px; font-size:15px; font-weight:700; min-height:48px; border:2px solid #F59E0B; background:#fff; color:#D97706; transition:all .15s; }
+    .btn-ongoing:hover { background:#FFFBEB; }
+    .btn-ongoing-undo { display:block; width:100%; padding:10px 14px; border-radius:10px; font-size:15px; font-weight:700; min-height:48px; border:2px solid #E5E7EB; background:#F9FAFB; color:#6B7280; transition:all .15s; }
+    .btn-ongoing-undo:hover { background:#E5E7EB; }
+
+    /* ── Mobile overrides ── */
+    @media (max-width: 600px) {
+      body { font-size: 15px; }
+      .apt-card-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      #sidebar { width: 260px; transform: translateX(-260px); }
+      #sidebar.open { transform: translateX(0); }
+      .hdr-l2 { display: none; }
+      .hdr-full { display: none !important; }
+      .hdr-short { display: inline !important; }
+      .hdr-l1 { font-size: 13px; }
+      .hdr-l3 { font-size: 12px; }
+      button { min-height: 48px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="overlay"><div class="spin"></div></div>
+<div id="toast"></div>
+<div id="print-area" style="display:none; font-family:'Times New Roman',serif; padding:40px; max-width:800px; margin:0 auto; font-size:14px; line-height:1.8;"></div>
+
+<!-- ── Photo modal ── -->
+<div id="photo-modal" onclick="closePhotoModal()">
+  <button id="modal-close">✕</button>
+  <img id="modal-img" src="" alt="" onclick="event.stopPropagation()">
+</div>
+
+<!-- ── Hidden file inputs ── -->
+<input type="file" id="fi-inv-cam"    accept="image/*" capture="environment" style="display:none" onchange="onEditPhoto('inv',this)">
+<input type="file" id="fi-inv-gal"    accept="image/*"                        style="display:none" onchange="onEditPhoto('inv',this)">
+<input type="file" id="fi-mgmt-cam"   accept="image/*" capture="environment" style="display:none" onchange="onEditPhoto('mgmt',this)">
+<input type="file" id="fi-mgmt-gal"   accept="image/*"                        style="display:none" onchange="onEditPhoto('mgmt',this)">
+<input type="file" id="fi-ap-inv-cam" accept="image/*" capture="environment" style="display:none" onchange="onApPhoto('inv',this)">
+<input type="file" id="fi-ap-inv-gal" accept="image/*"                        style="display:none" onchange="onApPhoto('inv',this)">
+<input type="file" id="fi-ap-mg-cam"  accept="image/*" capture="environment" style="display:none" onchange="onApPhoto('mgmt',this)">
+<input type="file" id="fi-ap-mg-gal"  accept="image/*"                        style="display:none" onchange="onApPhoto('mgmt',this)">
+<input type="file" id="fi-disc-cam"   accept="image/*" capture="environment" style="display:none" onchange="onDiscPhoto('doc',this)">
+<input type="file" id="fi-disc-gal"   accept="image/*"                        style="display:none" onchange="onDiscPhoto('doc',this)">
+<input type="file" id="fi-mccod-cam"  accept="image/*" capture="environment" style="display:none" onchange="onDiscPhoto('mccod',this)">
+<input type="file" id="fi-mccod-gal"  accept="image/*"                        style="display:none" onchange="onDiscPhoto('mccod',this)">
+<input type="file" id="fi-refer-cam"  accept="image/*" capture="environment" style="display:none" onchange="onDiscReferPhoto(this)">
+<input type="file" id="fi-refer-gal"  accept="image/*"                        style="display:none" onchange="onDiscReferPhoto(this)">
+<input type="file" id="fi-signup-photo" accept="image/*"                      style="display:none" onchange="onSignupPhoto(this)">
+
+<!-- ════════ OFFLINE BADGE ════════ -->
+<span id="offline-badge" style="display:none; position:fixed; top:10px; right:10px; z-index:9999; background:#EF4444; color:white; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px;">📵 OFFLINE</span>
+
+<!-- ════════ SIDEBAR ════════ -->
+<div id="sidebar-backdrop" onclick="closeSidebar()"></div>
+<nav id="sidebar">
+  <div class="sb-logo" onclick="sessionStorage.removeItem('currentBed');sessionStorage.removeItem('cameFromBed');showPage('pg-beds'); updateSidebarActive('pg-beds');" style="cursor:pointer"><span class="sb-logo-icon">🏥</span><div style="display:flex;flex-direction:column;gap:1px"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></div></div>
+  <div class="sb-nav">
+    <div class="sb-item active" id="sb-dashboard" onclick="navTo('pg-beds')">
+      <span class="sb-icon">🏠</span> Dashboard
+    </div>
+    <div class="sb-item" id="sb-all" onclick="navTo('pg-all-patients')">
+      <span class="sb-icon">🛏️</span> All Patients
+    </div>
+    <div class="sb-item" id="sb-search" onclick="navTo('pg-search')">
+      <span class="sb-icon">🔍</span> Search
+    </div>
+    <div class="sb-item" id="sb-notif" onclick="navTo('pg-notifications')">
+      <span class="sb-icon">🔔</span> Notifications
+      <span class="sb-notif-badge" id="sb-notif-badge"></span>
+    </div>
+    <div class="sb-item" id="sb-export" onclick="navTo('pg-export')">
+      <span class="sb-icon">📥</span>
+      <span>Export Data</span>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-item" onclick="doSignOut()">
+      <span class="sb-icon">🚪</span> Sign Out
+    </div>
+  </div>
+</nav>
+
+<!-- ════════ PAGE 1 — LOGIN ════════ -->
+<div class="page" id="pg-login">
+  <div class="auth-card">
+    <div class="auth-hero">
+      <div class="auth-logo">🏥</div>
+      <div class="auth-title">Kushtia Medical College Hospital</div>
+      <div class="auth-sub">Department of Medicine</div>
+      <div class="auth-sub" style="margin-top:1px;font-weight:700;color:#3B82F6">Unit 3 — Ward Management</div>
+    </div>
+    <div class="fg"><label class="fl">Email Address</label><input class="fi" type="email" id="inp-email" placeholder="you@hospital.com" autocomplete="email"></div>
+    <div class="fg">
+      <label class="fl">Password</label>
+      <div class="pw-wrap">
+        <input class="fi" type="password" id="inp-pw" placeholder="••••••••" autocomplete="current-password" style="padding-right:46px">
+        <button class="pw-eye" id="pw-eye" type="button" onclick="togglePwVis()" tabindex="-1">👁</button>
+      </div>
+    </div>
+    <button class="btn-primary" id="btn-login" onclick="doLogin()">Sign In</button>
+    <div class="auth-err" id="login-err" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- ════════ PAGE 1b — SIGNUP REQUEST ════════ -->
+<div class="page" id="pg-signup">
+  <div class="auth-card">
+    <div class="auth-hero">
+      <div class="auth-logo">📝</div>
+      <div class="auth-title">Request Access</div>
+      <div class="auth-sub">Submit your details for admin approval</div>
+    </div>
+    <div class="auth-err" id="signup-err"></div>
+    <div class="auth-ok" id="signup-ok">
+      ✅ Your request has been submitted. Please wait for admin approval.
+    </div>
+    <div id="signup-form">
+      <div class="fg"><label class="fl">Full Name</label><input class="fi" type="text" id="su-name" placeholder="Dr. / Mr. / Ms. Full Name"></div>
+      <div class="fg"><label class="fl">Email Address</label><input class="fi" type="email" id="su-email" placeholder="your@email.com"></div>
+      <div class="fg"><label class="fl">Password (you'll use this to login)</label><input class="fi" type="password" id="su-pw" placeholder="Choose a password"></div>
+      <div class="fg">
+        <label class="fl">Level / Role</label>
+        <select class="fi fi-sel" id="su-level">
+          <option value="">Select role...</option>
+          <option value="nurse">Nurse</option>
+          <option value="intern">Intern</option>
+          <option value="midlevel">Midlevel</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Age</label><input class="fi" type="number" id="su-age" placeholder="Age" min="18" max="80" style="max-width:140px"></div>
+      <div class="fg">
+        <label class="fl">Profile Photo</label>
+        <button class="btn-ph" style="display:inline-flex" onclick="document.getElementById('fi-signup-photo').click()">📷 Take / Choose Photo</button>
+        <img id="su-photo-preview" class="signup-photo-preview" src="" style="display:none">
+      </div>
+      <button class="btn-primary" id="btn-signup" onclick="doSignup()">Submit Request</button>
+    </div>
+    <div class="auth-footer"><button class="link-btn" onclick="showPage('pg-login')">← Back to Sign In</button></div>
+  </div>
+</div>
+
+<!-- ════════ PAGE 2 — BED GRID ════════ -->
+<div class="page" id="pg-beds">
+  <div class="hdr">
+    <div class="hdr-main">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="hdr-brand" onclick="navTo('pg-beds')" style="cursor:pointer">
+        <span class="hdr-icon">🏥</span>
+        <span class="hdr-name"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></span>
+      </div>
+      <div class="hdr-right">
+        <div id="critical-alert" class="critical-alert" style="display:none;cursor:pointer" onclick="openCriticalModal()">
+          <div class="pulse-dot"></div>
+          <span id="critical-alert-text"></span>
+        </div>
+        <div class="bell-wrap">
+          <button class="bell-btn" onclick="navTo('pg-notifications')" title="Notifications">🔔</button>
+          <span class="bell-count" id="bell-count-beds"></span>
+        </div>
+        <div class="hdr-user">
+          <div class="hdr-uname" id="beds-uname"></div>
+          <span class="badge" id="beds-badge"></span>
+        </div>
+        <button class="btn-sm" onclick="doSignOut()">Sign Out</button>
+      </div>
+    </div>
+    <div id="ticker-wrap">
+      <div class="ticker-track" id="ticker-track">
+        <span class="ticker-inner" id="ticker-text"></span>
+        <span class="ticker-inner" id="ticker-text2"></span>
+      </div>
+    </div>
+  </div>
+  <div class="pg-wrap">
+    <div class="dash-section" id="dash-sec-1">
+      <div class="dash-section-hdr" onclick="toggleDashSection('dash-sec-1')">
+        <span>🛏️ Current Patients</span>
+        <span class="dash-section-arrow">▼</span>
+      </div>
+      <div class="dash-section-body">
+        <div class="stats">
+          <div class="stat-item" onclick="openStatsModal('all','All Patients')"><div class="stat-n" id="s-occ">—</div><div class="stat-l">💙 Total</div></div>
+          <div class="stat-item" onclick="openStatsModal('male','Male Patients')"><div class="stat-n" id="s-male">—</div><div class="stat-l">👨 Male</div></div>
+          <div class="stat-item" onclick="openStatsModal('female','Female Patients')"><div class="stat-n" id="s-female">—</div><div class="stat-l">👩 Female</div></div>
+          <div class="stat-item" onclick="openCriticalModal()"><div class="stat-n red" id="s-crit">—</div><div class="stat-l" style="color:#EF4444">🔴 Critical</div></div>
+          <div class="stat-item" onclick="openStatsModal('ongoing','Diagnosis Ongoing')"><div class="stat-n" style="color:#F59E0B" id="s-ongoing">—</div><div class="stat-l" style="color:#D97706">⚠️ Ongoing</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dash-section" id="dash-sec-2">
+      <div class="dash-section-hdr" onclick="toggleDashSection('dash-sec-2')">
+        <span>📋 Discharge History (Last 7 Days)</span>
+        <span class="dash-section-arrow">▼</span>
+      </div>
+      <div class="dash-section-body">
+        <div class="stats">
+          <div class="stat-item" onclick="openDischStatModal('advice','Discharge with Advice')"><div class="stat-n" style="color:#10B981" id="s-advice">—</div><div class="stat-l" style="color:#10B981">✅ With Advice</div></div>
+          <div class="stat-item" onclick="openDischStatModal('request','Discharge on Request')"><div class="stat-n" style="color:#3B82F6" id="s-request">—</div><div class="stat-l" style="color:#3B82F6">📋 On Request</div></div>
+          <div class="stat-item" onclick="openDischStatModal('dorb','DORB')"><div class="stat-n" style="color:#8B5CF6" id="s-dorb">—</div><div class="stat-l" style="color:#8B5CF6">📝 DORB</div></div>
+          <div class="stat-item" onclick="openDischStatModal('refer','Referred')"><div class="stat-n" id="s-referred">—</div><div class="stat-l">🏥 Referred</div></div>
+          <div class="stat-item" onclick="openDischStatModal('transfer','Transferred')"><div class="stat-n" id="s-transferred">—</div><div class="stat-l">🔄 Transferred</div></div>
+          <div class="stat-item" onclick="openDischStatModal('absent','Absconded')"><div class="stat-n" id="s-absent">—</div><div class="stat-l">🚫 Absconded</div></div>
+          <div class="stat-item" onclick="openDischStatModal('deceased','Deceased')"><div class="stat-n" id="s-deceased">—</div><div class="stat-l">✝️ Deceased</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="add-bar" style="margin-bottom:0">
+      <div></div>
+      <button class="btn-add" onclick="openAddPatient()">+ Add Patient</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ PAGE 2b — ALL PATIENTS ════════ -->
+<div class="page" id="pg-all-patients">
+  <div class="hdr">
+    <div class="hdr-main">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="hdr-brand" onclick="navTo('pg-beds')" style="cursor:pointer">
+        <span class="hdr-icon">🏥</span>
+        <span class="hdr-name"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></span>
+      </div>
+      <div class="hdr-right">
+        <div class="bell-wrap">
+          <button class="bell-btn" onclick="navTo('pg-notifications')" title="Notifications">🔔</button>
+          <span class="bell-count" id="bell-count-apts"></span>
+        </div>
+        <div class="hdr-user">
+          <div class="hdr-uname" id="apts-uname"></div>
+          <span class="badge" id="apts-badge"></span>
+        </div>
+        <button class="btn-sm" onclick="doSignOut()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+  <div class="pg-wrap">
+    <div class="add-bar" style="margin-bottom:16px">
+      <div>
+        <div style="font-size:18px;font-weight:800;color:#1E3A5F">🛏️ All Patients</div>
+        <div style="font-size:12px;color:#9CA3AF;margin-top:2px">Beds 1–32 · 33–60 · E1–E5</div>
+      </div>
+      <button class="btn-add" onclick="openAddPatient()">+ Add Patient</button>
+    </div>
+    <div id="apt-list"></div>
+  </div>
+</div>
+
+<!-- ════════ PAGE 2c — SEARCH ════════ -->
+<div class="page" id="pg-search">
+  <div class="hdr">
+    <div class="hdr-main">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="hdr-brand" onclick="navTo('pg-beds')" style="cursor:pointer">
+        <span class="hdr-icon">🏥</span>
+        <span class="hdr-name"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></span>
+      </div>
+      <div class="hdr-right">
+        <div class="bell-wrap">
+          <button class="bell-btn" onclick="navTo('pg-notifications')" title="Notifications">🔔</button>
+          <span class="bell-count" id="bell-count-srch"></span>
+        </div>
+        <div class="hdr-user">
+          <div class="hdr-uname" id="srch-uname"></div>
+          <span class="badge" id="srch-badge"></span>
+        </div>
+        <button class="btn-sm" onclick="doSignOut()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+  <div class="pg-wrap">
+    <div class="srch-input-wrap">
+      <input class="srch-input" type="text" id="srch-input" placeholder="Search beds, patients, diagnosis, address…" oninput="onSearch()" autocomplete="off" autocorrect="off" autocapitalize="off">
+      <button class="srch-clear" id="srch-clear" onclick="clearSearch()">✕</button>
+    </div>
+    <div id="srch-hint" class="srch-hint">🔍 Type to search beds, patients, diagnoses…</div>
+    <div id="srch-none" class="srch-none" style="display:none">No results found</div>
+    <div class="srch-grid" id="srch-results"></div>
+  </div>
+</div>
+
+<!-- ════════ PAGE 2d — NOTIFICATIONS ════════ -->
+<div class="page" id="pg-notifications">
+  <div class="hdr">
+    <div class="hdr-main">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="hdr-brand" onclick="navTo('pg-beds')" style="cursor:pointer">
+        <span class="hdr-icon">🏥</span>
+        <span class="hdr-name"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></span>
+      </div>
+      <div class="hdr-right">
+        <div class="hdr-user">
+          <div class="hdr-uname" id="noti-uname"></div>
+          <span class="badge" id="noti-badge"></span>
+        </div>
+        <button class="btn-sm" onclick="doSignOut()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+  <div class="pg-wrap">
+    <div style="font-size:18px;font-weight:800;color:#1E3A5F;margin-bottom:14px">🔔 Notifications</div>
+    <div class="notif-list" id="notif-list"></div>
+    <div class="notif-empty" id="notif-empty" style="display:none">No notifications yet</div>
+  </div>
+</div>
+
+<!-- ════════ PAGE — EXPORT ════════ -->
+<div class="page" id="pg-export">
+  <div class="hdr">
+    <div class="hdr-main">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="hdr-brand" onclick="navTo('pg-beds')" style="cursor:pointer">
+        <span class="hdr-icon">🏥</span>
+        <span class="hdr-name"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></span>
+      </div>
+      <div class="hdr-right">
+        <div class="hdr-user">
+          <div class="hdr-uname" id="exp-uname"></div>
+          <span class="badge" id="exp-badge"></span>
+        </div>
+        <button class="btn-sm" onclick="doSignOut()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+  <div class="pg-wrap">
+    <h2 style="font-family:'Times New Roman',serif; color:#1E3A5F; margin-bottom:16px">📥 Export Discharge Data</h2>
+    <div style="background:white; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,.07)">
+      <div style="font-weight:700; font-size:15px; color:#1E3A5F; margin-bottom:14px">🔍 Filter Records</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px; font-weight:600; color:#6B7280; display:block; margin-bottom:4px">DATE RANGE</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <input type="date" id="exp-date-from" style="flex:1; min-width:130px; padding:10px; border:1.5px solid #E5E7EB; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px">
+          <span style="align-self:center; color:#6B7280">to</span>
+          <input type="date" id="exp-date-to" style="flex:1; min-width:130px; padding:10px; border:1.5px solid #E5E7EB; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px; font-weight:600; color:#6B7280; display:block; margin-bottom:4px">DISCHARGE TYPE</label>
+        <select id="exp-type" style="width:100%; padding:10px; border:1.5px solid #E5E7EB; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; background:white">
+          <option value="">All Types</option>
+          <option value="advice">✅ Discharge with Advice</option>
+          <option value="request">📋 Discharge on Request</option>
+          <option value="dorb">📝 DORB</option>
+          <option value="refer">🏥 Referred</option>
+          <option value="transfer">🔄 Transferred</option>
+          <option value="absent">🚫 Absconded</option>
+          <option value="deceased">✝️ Deceased</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px; font-weight:600; color:#6B7280; display:block; margin-bottom:4px">PATIENT NAME</label>
+        <input type="text" id="exp-name" placeholder="Search by name..." style="width:100%; padding:10px; border:1.5px solid #E5E7EB; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px; font-weight:600; color:#6B7280; display:block; margin-bottom:4px">BED NUMBER</label>
+        <input type="number" id="exp-bed" placeholder="e.g. 5" min="1" max="65" style="width:100%; padding:10px; border:1.5px solid #E5E7EB; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; box-sizing:border-box">
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:13px; font-weight:600; color:#6B7280; display:block; margin-bottom:4px">DIAGNOSIS CONTAINS</label>
+        <input type="text" id="exp-dx" placeholder="Search by diagnosis..." style="width:100%; padding:10px; border:1.5px solid #E5E7EB; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; box-sizing:border-box">
+      </div>
+      <button onclick="runExport()" style="width:100%; padding:14px; background:#3B82F6; color:white; border:none; border-radius:10px; font-family:'Times New Roman',serif; font-size:15px; font-weight:700; cursor:pointer">🔍 Search Records</button>
+    </div>
+    <div id="exp-results" style="display:none">
+      <div style="background:white; border-radius:12px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.07)">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px">
+          <div id="exp-result-count" style="font-weight:700; color:#1E3A5F; font-size:15px"></div>
+          <div style="display:flex; gap:8px">
+            <button onclick="downloadCSV()" style="padding:10px 16px; background:#10B981; color:white; border:none; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; font-weight:600; cursor:pointer">⬇️ CSV</button>
+            <button onclick="downloadTXT()" style="padding:10px 16px; background:#8B5CF6; color:white; border:none; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; font-weight:600; cursor:pointer">⬇️ TXT</button>
+            <button onclick="downloadPDF()" style="padding:10px 16px; background:#EF4444; color:white; border:none; border-radius:8px; font-family:'Times New Roman',serif; font-size:14px; font-weight:600; cursor:pointer">⬇️ PDF</button>
+            <div style="font-size:11px; color:#9CA3AF; margin-top:4px; text-align:center">Tip: uncheck "Headers and footers" in print dialog</div>
+          </div>
+        </div>
+        <div id="exp-table-wrap" style="overflow-x:auto">
+          <table id="exp-table" style="width:100%; border-collapse:collapse; font-family:'Times New Roman',serif; font-size:13px">
+            <thead>
+              <tr style="background:#F3F4F6">
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Bed</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Name</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Age/Sex</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Diagnosis</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Type</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Refer/Transfer</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">Date</th>
+                <th style="padding:10px 8px; text-align:left; border-bottom:2px solid #E5E7EB">By</th>
+              </tr>
+            </thead>
+            <tbody id="exp-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="exp-empty" style="display:none; text-align:center; padding:40px; color:#9CA3AF; font-size:15px">No records found for selected filters</div>
+  </div>
+</div>
+
+<!-- ════════ PAGE 3 — PATIENT DETAIL ════════ -->
+<div class="page" id="pg-detail">
+  <div class="hdr">
+    <div class="hdr-main">
+      <div class="hdr-brand" onclick="navTo('pg-beds')" style="cursor:pointer">
+        <span class="hdr-icon">🏥</span>
+        <span class="hdr-name"><span class="hdr-l1 hdr-full">Kushtia Medical College Hospital</span><span class="hdr-l1 hdr-short" style="display:none">KuMCH</span><span class="hdr-l2">Department of Medicine</span><span class="hdr-l3">Unit 3</span></span>
+      </div>
+      <div class="hdr-right">
+        <div class="hdr-user">
+          <div class="hdr-uname" id="det-uname"></div>
+          <span class="badge" id="det-badge"></span>
+        </div>
+        <button class="btn-sm" onclick="doSignOut()" style="display:flex;align-items:center;gap:4px">🚪 Logout</button>
+      </div>
+    </div>
+  </div>
+  <div class="det-wrap">
+    <button class="btn-back" onclick="goBack()">← Back to Beds</button>
+    <div class="det-hdr">
+      <div>
+        <div class="det-bed" id="det-bed-lbl"></div>
+        <div class="det-pt"  id="det-pt-name"></div>
+        <div class="det-lu"  id="det-lu"></div>
+      </div>
+      <div class="det-actions">
+        <button class="btn-critical" id="btn-crit" onclick="toggleCritical()">🔴 Mark Critical</button>
+        <button class="btn-discharge" id="btn-disc" onclick="openDischarge()" style="display:none">🏥 Discharge</button>
+      </div>
+    </div>
+
+    <!-- Section 1: Patient Particulars -->
+    <div class="sec">
+      <div class="sec-hdr" onclick="toggleSec(1)">
+        <div class="sec-left">
+          <span class="sec-em">📋</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sec-ttl">Patient Particulars</span>
+              <span class="sec-arrow" id="arr1">▼</span>
+            </div>
+          </div>
+        </div>
+        <div class="sec-btns" onclick="event.stopPropagation()">
+          <button class="btn-edit" id="btn-e1" onclick="startEdit(1)">Edit</button>
+        </div>
+      </div>
+      <div class="sec-summary" id="ss1"></div>
+      <div class="sec-body" id="sb1">
+        <div id="sv1">
+          <div class="field"><div class="f-lbl">Full Name</div><div class="f-val" id="vv-name"></div></div>
+          <div class="field"><div class="f-lbl">Age</div><div class="f-val" id="vv-age"></div></div>
+          <div class="field"><div class="f-lbl">Sex</div><div class="f-val" id="vv-sex"></div></div>
+          <div class="field"><div class="f-lbl">Address</div><div class="f-val" id="vv-addr"></div></div>
+          <div class="field"><div class="f-lbl">Registration No</div><div class="f-val" id="vv-reg"></div></div>
+          <div class="field"><div class="f-lbl">Bed No</div><div class="f-val" id="vv-bed"></div></div>
+        </div>
+        <div id="se1" style="display:none">
+          <div class="field"><div class="f-lbl">Full Name</div><input class="f-inp" type="text" id="ei-name" placeholder="Patient full name"></div>
+          <div class="field"><div class="f-lbl">Age</div><input class="f-inp" type="number" id="ei-age" placeholder="Age" min="0" max="150" style="max-width:130px"></div>
+          <div class="field"><div class="f-lbl">Sex</div><div class="sex-row"><button class="btn-sex" data-v="male" onclick="pickSex('male','edit')">Male</button><button class="btn-sex" data-v="female" onclick="pickSex('female','edit')">Female</button><button class="btn-sex" data-v="other" onclick="pickSex('other','edit')">Other</button></div></div>
+          <div class="field"><div class="f-lbl">Address</div><textarea class="f-inp f-ta" id="ei-addr" placeholder="Patient address..." style="min-height:60px"></textarea></div>
+          <div class="field"><div class="f-lbl">Registration No</div><input class="f-inp" type="text" id="ei-reg" placeholder="Registration number"></div>
+          <div class="save-row">
+            <button class="btn-save" onclick="saveSection(1)">Save</button>
+            <button class="btn-cancel" onclick="cancelEdit(1)">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Clinical Assessment -->
+    <div class="sec">
+      <div class="sec-hdr" onclick="toggleSec(2)">
+        <div class="sec-left">
+          <span class="sec-em">🩺</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sec-ttl">Clinical Assessment</span>
+              <span class="sec-arrow" id="arr2">▼</span>
+              <span class="badge" id="ongoing-badge" style="display:none;background:#FEF3C7;color:#92400E">ONGOING</span>
+            </div>
+          </div>
+        </div>
+        <div class="sec-btns" onclick="event.stopPropagation()">
+          <button class="btn-edit" id="btn-e2" onclick="startEdit(2)">Edit</button>
+        </div>
+      </div>
+      <div class="sec-summary" id="ss2"></div>
+      <div class="sec-body" id="sb2">
+        <div id="sv2">
+          <div class="field"><div class="f-lbl">Chief Complaints</div><div class="f-val" id="vv-cc"></div></div>
+          <div class="divider"></div>
+          <div class="field"><div class="f-lbl">On Examination</div><div class="f-val" id="vv-oe"></div></div>
+          <div class="divider"></div>
+          <div class="field"><div class="f-lbl">Investigations</div><div class="f-val" id="vv-inv"></div><div id="vv-inv-ph"></div></div>
+          <div class="divider"></div>
+          <div class="field"><div class="f-lbl">Management</div><div class="f-val" id="vv-mgmt"></div><div id="vv-mgmt-ph"></div></div>
+          <div id="btn-ongoing-wrap" style="display:none;margin-top:10px">
+            <button class="btn-ongoing" id="btn-ongoing" onclick="markOngoing()">📊 Mark Diagnosis Ongoing</button>
+          </div>
+        </div>
+        <div id="se2" style="display:none">
+          <div class="field"><div class="f-lbl">Chief Complaints</div><textarea class="f-inp f-ta" id="ei-cc" placeholder="Chief complaints..."></textarea></div>
+          <div class="field"><div class="f-lbl">On Examination</div><textarea class="f-inp f-ta" id="ei-oe" placeholder="On examination..."></textarea></div>
+          <div class="field">
+            <div class="f-lbl">Investigations</div>
+            <textarea class="f-inp f-ta" id="ei-inv" placeholder="Investigations..."></textarea>
+            <div class="photo-ctrl"><div class="photo-btns"><button class="btn-ph" onclick="tri('fi-inv-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-inv-gal')">🖼 Gallery</button></div><div class="thumb-wrap" id="tw-inv"><img class="thumb" id="th-inv" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearEditPhoto('inv')">✕</button></div></div>
+          </div>
+          <div class="field">
+            <div class="f-lbl">Management</div>
+            <textarea class="f-inp f-ta" id="ei-mgmt" placeholder="Management plan..."></textarea>
+            <div class="photo-ctrl"><div class="photo-btns"><button class="btn-ph" onclick="tri('fi-mgmt-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-mgmt-gal')">🖼 Gallery</button></div><div class="thumb-wrap" id="tw-mgmt"><img class="thumb" id="th-mgmt" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearEditPhoto('mgmt')">✕</button></div></div>
+          </div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection(2)">Save</button><button class="btn-cancel" onclick="cancelEdit(2)">Cancel</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Diagnosis -->
+    <div class="sec">
+      <div class="sec-hdr" onclick="toggleSec(3)">
+        <div class="sec-left">
+          <span class="sec-em">📊</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sec-ttl">Diagnosis</span>
+              <span class="sec-arrow" id="arr3">▼</span>
+            </div>
+          </div>
+        </div>
+        <div class="sec-btns" onclick="event.stopPropagation()">
+          <button class="btn-edit" id="btn-e3" onclick="startEdit(3)">Edit</button>
+        </div>
+      </div>
+      <div class="sec-summary" id="ss3"></div>
+      <div class="sec-body" id="sb3">
+        <div id="sv3">
+          <div class="field"><div class="f-lbl">Provisional Diagnosis</div><div class="f-val" id="vv-dx"></div></div>
+        </div>
+        <div id="se3" style="display:none">
+          <div class="field"><div class="f-lbl">Provisional Diagnosis</div><textarea class="f-inp f-ta" id="ei-dx" placeholder="Provisional diagnosis..."></textarea></div>
+          <div class="save-row"><button class="btn-save" onclick="saveSection(3)">Save</button><button class="btn-cancel" onclick="cancelEdit(3)">Cancel</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Plan -->
+    <div class="sec">
+      <div class="sec-hdr" onclick="toggleSec(4)">
+        <div class="sec-left">
+          <span class="sec-em">📋</span>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="sec-ttl">Plan</span>
+              <span class="sec-arrow" id="arr4">▼</span>
+            </div>
+          </div>
+        </div>
+        <div class="sec-btns" onclick="event.stopPropagation()">
+          <button class="btn-edit" id="btn-e4" onclick="startEdit(4)">Edit</button>
+        </div>
+      </div>
+      <div class="sec-summary" id="ss4"></div>
+      <div class="sec-body" id="sb4">
+        <div id="sv4">
+          <div class="field"><div class="f-lbl">Plan</div><div class="f-val" id="vv-plan"></div></div>
+          <div class="divider"></div>
+          <div class="field"><div class="f-lbl">Plan Notes</div><div class="f-val" id="vv-plan-notes"></div></div>
+        </div>
+        <div id="se4" style="display:none">
+          <div class="field">
+            <div class="f-lbl">Plan <span style="color:#EF4444">*</span></div>
+            <select class="f-inp" id="ei-plan" onchange="onPlanTypeChange()">
+              <option value="">Select plan...</option>
+              <option>Repeat All</option>
+              <option>Investigation Given</option>
+              <option>Changed Management</option>
+              <option>Discharge Tomorrow</option>
+              <option>Discharge Today</option>
+              <option>Refer to Higher Center</option>
+              <option>Procedure Will Be Done</option>
+              <option>Others</option>
+            </select>
+          </div>
+          <div class="field" id="ei-plan-others-wrap" style="display:none">
+            <div class="f-lbl">Specify Plan</div>
+            <textarea class="f-inp f-ta" id="ei-plan-others" placeholder="Specify plan..."></textarea>
+          </div>
+          <div class="field">
+            <div class="f-lbl">Plan Notes (optional)</div>
+            <textarea class="f-inp f-ta" id="ei-plan-notes" placeholder="Additional plan notes..."></textarea>
+          </div>
+          <div class="save-row">
+            <button class="btn-save" onclick="saveSection(4)">Save</button>
+            <button class="btn-cancel" onclick="cancelEdit(4)">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════ ADD PATIENT MODAL ════════ -->
+<div class="modal-bg" id="ap-modal">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeAddPatient()">✕</button>
+    <div class="modal-title">Add Patient</div>
+    <div id="ap-sub" class="modal-sub">Step 1 of 3 — Select Bed</div>
+    <div class="step-indicator" id="ap-steps"><div class="step-dot on" id="ap-dot1"></div><div class="step-dot" id="ap-dot2"></div><div class="step-dot" id="ap-dot3"></div></div>
+
+    <!-- Step 1: Bed selection -->
+    <div id="ap-step1">
+      <div class="f-lbl" style="margin-bottom:8px">Available Empty Beds</div>
+      <div id="ap-bed-container"></div>
+      <div id="ap-bed-none" style="display:none;color:#9CA3AF;font-size:14px;text-align:center;padding:16px">No empty beds available.</div>
+    </div>
+
+    <!-- Step 2: Patient Particulars -->
+    <div id="ap-step2" style="display:none">
+      <div class="field"><div class="f-lbl">Full Name <span style="color:#EF4444">*</span></div><input class="f-inp" type="text" id="ap-name" placeholder="Patient full name"></div>
+      <div class="field"><div class="f-lbl">Age</div><input class="f-inp" type="number" id="ap-age" placeholder="Age" min="0" max="150" style="max-width:130px"></div>
+      <div class="field"><div class="f-lbl">Sex</div><div class="sex-row"><button class="btn-sex" data-v="male" onclick="pickSex('male','ap')">Male</button><button class="btn-sex" data-v="female" onclick="pickSex('female','ap')">Female</button><button class="btn-sex" data-v="other" onclick="pickSex('other','ap')">Other</button></div></div>
+      <div class="field"><div class="f-lbl">Address</div><textarea class="f-inp f-ta" id="ap-addr" placeholder="Patient address..." style="min-height:60px"></textarea></div>
+      <div class="field"><div class="f-lbl">Registration No</div><input class="f-inp" type="text" id="ap-reg" placeholder="Registration number"></div>
+      <div class="field"><div class="f-lbl">Selected Bed</div><input class="f-inp" type="text" id="ap-bed-display" readonly style="background:#F3F4F6;color:#6B7280"></div>
+      <div class="modal-nav"><button class="btn-prev" onclick="apGoTo(1)">← Back</button><button class="btn-next" onclick="apGoTo(3)">Next: Clinical →</button></div>
+    </div>
+
+    <!-- Step 3: Clinical Details -->
+    <div id="ap-step3" style="display:none">
+      <div style="background:#EFF6FF;border-radius:10px;padding:10px 12px;font-size:13px;color:#1D4ED8;margin-bottom:14px">💡 Clinical fields are optional for nurses. Fill as available.</div>
+      <div class="field"><div class="f-lbl">Chief Complaints</div><textarea class="f-inp f-ta" id="ap-cc" placeholder="Chief complaints..."></textarea></div>
+      <div class="field"><div class="f-lbl">On Examination</div><textarea class="f-inp f-ta" id="ap-oe" placeholder="On examination..."></textarea></div>
+      <div class="field">
+        <div class="f-lbl">Investigations</div>
+        <textarea class="f-inp f-ta" id="ap-inv" placeholder="Investigations..."></textarea>
+        <div class="photo-ctrl"><div class="photo-btns"><button class="btn-ph" onclick="tri('fi-ap-inv-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-ap-inv-gal')">🖼 Gallery</button></div><div class="thumb-wrap" id="ap-tw-inv"><img class="thumb" id="ap-th-inv" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearApPhoto('inv')">✕</button></div></div>
+      </div>
+      <div class="field"><div class="f-lbl">Provisional Diagnosis</div><textarea class="f-inp f-ta" id="ap-dx" placeholder="Provisional diagnosis..."></textarea></div>
+      <div class="field">
+        <div class="f-lbl">Management</div>
+        <textarea class="f-inp f-ta" id="ap-mgmt" placeholder="Management plan..."></textarea>
+        <div class="photo-ctrl"><div class="photo-btns"><button class="btn-ph" onclick="tri('fi-ap-mg-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-ap-mg-gal')">🖼 Gallery</button></div><div class="thumb-wrap" id="ap-tw-mgmt"><img class="thumb" id="ap-th-mgmt" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearApPhoto('mgmt')">✕</button></div></div>
+      </div>
+      <div class="modal-nav"><button class="btn-prev" onclick="apGoTo(2)">← Back</button><button class="btn-next btn-green" onclick="saveNewPatient()">💾 Save Patient</button></div>
+      <button class="btn-notify-intern" style="width:100%;padding:13px;margin-top:8px;background:#EDE9FE;color:#6D28D9;border:1.5px solid #C4B5FD;border-radius:10px;font-size:14px;font-weight:700;min-height:50px;cursor:pointer" onclick="saveParticularsOnly()">⏭️ Save &amp; Notify Intern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ DISCHARGE MODAL ════════ -->
+<div class="modal-bg" id="disc-modal">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeDischarge()">✕</button>
+    <div class="modal-title" id="disc-modal-title">Discharge Patient</div>
+    <div class="modal-sub">Select discharge type</div>
+
+    <!-- Step 1 -->
+    <div id="disc-s1" class="disc-step on">
+      <div class="disc-types">
+        <button class="disc-type-btn" onclick="selDiscType('advice')">
+          <span class="disc-icon">🏠</span><div><div class="disc-ttl">Discharge with Advice</div><div class="disc-desc">Patient discharged with instructions</div></div>
+        </button>
+        <button class="disc-type-btn" onclick="selDiscType('request')">
+          <span class="disc-icon">📋</span><div><div class="disc-ttl">Discharge on Request (DAMA)</div><div class="disc-desc">Patient requested early discharge</div></div>
+        </button>
+        <button class="disc-type-btn" onclick="selDiscType('dorb')">
+          <span class="disc-icon">📝</span><div><div class="disc-ttl">Discharge on Request Bond (DORB)</div><div class="disc-desc">Patient/guardian signed bond</div></div>
+        </button>
+        <button class="disc-type-btn" onclick="selDiscType('deceased')">
+          <span class="disc-icon">✝️</span><div><div class="disc-ttl">Deceased</div><div class="disc-desc">Patient expired during admission</div></div>
+        </button>
+        <button class="disc-type-btn" onclick="selDiscType('absent')">
+          <span class="disc-icon">🚫</span><div><div class="disc-ttl">Absent</div><div class="disc-desc">Patient left without notice</div></div>
+        </button>
+        <button class="disc-type-btn" onclick="selDiscType('refer')">
+          <span class="disc-icon">🏥</span><div><div class="disc-ttl">Refer to Higher Center</div><div class="disc-desc">Patient referred to another hospital</div></div>
+        </button>
+        <button class="disc-type-btn" onclick="selDiscType('transfer')">
+          <span class="disc-icon">🔄</span><div><div class="disc-ttl">Transfer (within hospital)</div><div class="disc-desc">Patient transferred to another department</div></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2a: Advice / Request -->
+    <div id="disc-s2a" class="disc-step">
+      <div class="field"><div class="f-lbl">Discharge Advice / Notes</div><textarea class="f-inp f-ta" id="disc-advice" placeholder="Discharge advice, follow-up, medications..."></textarea></div>
+      <div class="field">
+        <div class="f-lbl">Discharge Document Photo <span style="color:#EF4444">*</span></div>
+        <div class="photo-btns"><button class="btn-ph" onclick="tri('fi-disc-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-disc-gal')">🖼 Gallery</button></div>
+        <div class="thumb-wrap" id="tw-disc"><img class="thumb" id="th-disc" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearDiscPhoto('doc')">✕</button></div>
+      </div>
+      <div class="disc-photo-err" id="disc-doc-err">📸 Discharge document photo is required</div>
+      <div class="field"><label class="disc-check-row" for="disc-pdf-cb"><input type="checkbox" class="disc-chk" id="disc-pdf-cb" checked><span class="disc-chk-lbl">📄 Generate Discharge Summary PDF</span></label></div>
+      <button class="btn-disc-confirm" onclick="confirmDischarge()">✅ Confirm Discharge</button>
+      <button class="btn-disc-back" onclick="discBack()">← Back</button>
+    </div>
+
+    <!-- Step 2b: Deceased -->
+    <div id="disc-s2b" class="disc-step">
+      <div class="field">
+        <div class="f-lbl">MCCOD Form Photo <span style="color:#EF4444">*</span></div>
+        <div style="font-size:12px;color:#9CA3AF;margin-bottom:8px">Medical Certificate of Cause of Death — mandatory</div>
+        <div class="photo-btns"><button class="btn-ph" onclick="tri('fi-mccod-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-mccod-gal')">🖼 Gallery</button></div>
+        <div class="thumb-wrap" id="tw-mccod"><img class="thumb" id="th-mccod" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearDiscPhoto('mccod')">✕</button></div>
+      </div>
+      <div class="disc-photo-err" id="disc-mccod-err">📸 MCCOD form photo is required</div>
+      <button class="btn-disc-confirm" onclick="confirmDischarge()">✅ Confirm Discharge</button>
+      <button class="btn-disc-back" onclick="discBack()">← Back</button>
+    </div>
+
+    <!-- Step 2c: Absent -->
+    <div id="disc-s2c" class="disc-step">
+      <div style="background:#F9FAFB;border-radius:10px;padding:10px 12px;font-size:13px;color:#6B7280;margin-bottom:12px">Patient left without formal discharge. This will be documented for records.</div>
+      <div class="field"><div class="f-lbl">Reason / Notes (optional)</div><textarea class="f-inp f-ta" id="disc-absent" placeholder="Additional notes..."></textarea></div>
+      <button class="btn-disc-confirm" onclick="confirmDischarge()">✅ Confirm Discharge</button>
+      <button class="btn-disc-back" onclick="discBack()">← Back</button>
+    </div>
+
+    <!-- Step 2d: Refer to Higher Center -->
+    <div id="disc-s2d" class="disc-step">
+      <div class="field">
+        <div class="f-lbl">Refer to <span style="color:#EF4444">*</span></div>
+        <select class="f-inp" id="disc-refer-to">
+          <option value="">Select higher center...</option>
+          <option>DMCH</option>
+          <option>RMCH</option>
+          <option>NIKDU</option>
+          <option>NICDH</option>
+          <option>NICVD</option>
+          <option>NINS</option>
+          <option>NICRH</option>
+          <option>NITORE</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="f-lbl">Referral Paper Photo <span style="color:#EF4444">*</span></div>
+        <div class="photo-btns"><button class="btn-ph" onclick="tri('fi-refer-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-refer-gal')">🖼 Gallery</button></div>
+        <div class="thumb-wrap" id="tw-refer"><img class="thumb" id="th-refer" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearReferPhoto()">✕</button></div>
+      </div>
+      <div class="disc-photo-err" id="disc-refer-err">📸 Both center selection and referral paper photo are required</div>
+      <button class="btn-disc-confirm" onclick="confirmDischarge()">✅ Confirm Discharge</button>
+      <button class="btn-disc-back" onclick="discBack()">← Back</button>
+    </div>
+
+    <!-- Step 2e: Transfer within hospital -->
+    <div id="disc-s2e" class="disc-step">
+      <div class="field">
+        <div class="f-lbl">Transfer to Department <span style="color:#EF4444">*</span></div>
+        <select class="f-inp" id="disc-transfer-to">
+          <option value="">Select department...</option>
+          <option>Surgery</option>
+          <option>Gynae &amp; OBS</option>
+          <option>Orthopaedics</option>
+          <option>ENT</option>
+          <option>Ophthalmology</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="f-lbl">Transfer Paper Photo <span style="color:#EF4444">*</span></div>
+        <div class="photo-btns"><button class="btn-ph" onclick="tri('fi-refer-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-refer-gal')">🖼 Gallery</button></div>
+        <div class="thumb-wrap" id="tw-transfer"><img class="thumb" id="th-transfer" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearReferPhoto()">✕</button></div>
+      </div>
+      <div class="disc-photo-err" id="disc-transfer-err">📸 Both department selection and transfer paper photo are required</div>
+      <button class="btn-disc-confirm" onclick="confirmDischarge()">✅ Confirm Discharge</button>
+      <button class="btn-disc-back" onclick="discBack()">← Back</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════ FINAL DISCHARGE MODAL ════════ -->
+<div class="modal-bg" id="modal-final-discharge">
+  <div class="modal-card" style="text-align:center">
+    <div style="font-size:56px;margin-bottom:8px">✅</div>
+    <div class="modal-title" id="fdisc-title">Discharge Patient?</div>
+    <div class="modal-sub" id="fdisc-sub">Bed will be cleared</div>
+    <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px">
+      <button class="btn-primary" style="background:#3B82F6" onclick="downloadAndDischarge()">⬇️ Download &amp; Discharge</button>
+      <button class="btn-primary btn-green" onclick="dischargeNow()">✅ Discharge</button>
+    </div>
+    <button class="link-btn" style="margin-top:16px;display:block" onclick="backFromFinalDischarge()">← Back</button>
+  </div>
+</div>
+
+<!-- ════════ CRITICAL PATIENTS MODAL ════════ -->
+<div class="modal-bg" id="modal-crit-list">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeCritModal()">✕</button>
+    <div class="modal-title">🔴 Critical Patients</div>
+    <div class="modal-sub" id="crit-modal-sub"></div>
+    <div class="cth-grid" id="crit-modal-grid"></div>
+    <div class="cth-empty" id="crit-modal-empty" style="display:none">No critical patients</div>
+  </div>
+</div>
+
+<!-- ════════ STATS THUMBNAIL MODAL ════════ -->
+<div class="modal-bg" id="modal-stats">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeStatsModal()">✕</button>
+    <div class="modal-title" id="stats-modal-title"></div>
+    <div class="modal-sub" id="stats-modal-sub"></div>
+    <div class="cth-grid" id="stats-modal-grid"></div>
+    <div class="cth-empty" id="stats-modal-empty" style="display:none">No patients found</div>
+  </div>
+</div>
+
+<script>
+  var db = supabase.createClient(
+    'https://gzgldhenfyoqctqnwgod.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6Z2xkaGVuZnlvcWN0cW53Z29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NjcwNjUsImV4cCI6MjA5NTM0MzA2NX0.B3t5i7z5BzjOeW9VjmraPLr5CTT0e8iEhaJ_M9qqF-U',
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storageKey: 'kmch-unit3-auth',
+        storage: {
+          getItem: function(key) { try { return localStorage.getItem(key); } catch(e) { return null; } },
+          setItem: function(key, value) { try { localStorage.setItem(key, value); } catch(e) {} },
+          removeItem: function(key) { try { localStorage.removeItem(key); } catch(e) {} }
+        }
+      }
+    }
+  );
+
+  var STORAGE_URL = 'https://gzgldhenfyoqctqnwgod.supabase.co/storage/v1/object/public/patient-photos/';
+
+  async function compressImage(base64data, maxSizeMB) {
+    return new Promise(function(resolve) {
+      try {
+        if (!base64data || !base64data.startsWith('data:image')) { resolve(base64data); return; }
+        var img = new Image();
+        img.onload = function() {
+          var canvas = document.createElement('canvas');
+          var ctx = canvas.getContext('2d');
+          var maxW = 1920, maxH = 1920;
+          var w = img.width, h = img.height;
+          if (w > maxW || h > maxH) {
+            if (w/h > maxW/maxH) { h = Math.round(h * maxW / w); w = maxW; }
+            else { w = Math.round(w * maxH / h); h = maxH; }
+          }
+          canvas.width = w; canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          var quality = 0.8;
+          var result = canvas.toDataURL('image/jpeg', quality);
+          while (result.length > maxSizeMB * 1024 * 1024 * 1.37 && quality > 0.1) {
+            quality -= 0.1;
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(result);
+        };
+        img.onerror = function() { resolve(base64data); };
+        img.src = base64data;
+      } catch(e) { console.error('compressImage error:', e); resolve(base64data); }
+    });
+  }
+
+  async function uploadPhoto(base64data, bedId, patientName, fieldName) {
+    try {
+      if (!base64data || !base64data.startsWith('data:')) return base64data;
+      if(!isOnline){ console.log('Offline: keeping photo as base64 for now'); return base64data; }
+      var today = new Date().toISOString().split('T')[0];
+      var safeName = (patientName || 'unknown').replace(/[^a-zA-Z0-9]/g, '_');
+      var timestamp = Date.now();
+      var ext = base64data.includes('image/png') ? 'png' : 'jpg';
+      var path = today + '/Bed-' + bedId + '_' + safeName + '/' + fieldName + '_' + timestamp + '.' + ext;
+      var base64 = base64data.split(',')[1];
+      var binary = atob(base64);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      var blob = new Blob([bytes], {type: base64data.includes('image/png') ? 'image/png' : 'image/jpeg'});
+      var { data, error } = await db.storage.from('patient-photos').upload(path, blob, {upsert: true});
+      if (error) { console.error('Storage upload error:', error); return base64data; }
+      return STORAGE_URL + path;
+    } catch(e) {
+      console.error('uploadPhoto error:', e);
+      return base64data;
+    }
+  }
+
+  // ── State ──
+  var me           = null;
+  var recs         = [];       // {bed_id, name, age, sex, address, registration_no, provisional_dx, is_critical}
+  var rec          = null;     // full current record
+  var rtChannel    = null;     // realtime channel
+  var currentAppPage = 'pg-beds'; // active app page for sidebar highlight
+  var notifications  = [];
+  var unreadCount    = 0;
+  var rtNotifChannel = null;
+  var collapsed    = {1:false, 2:false, 3:false};
+  var editSex      = '';
+  var ePhotoInv    = '';
+  var ePhotoMgmt   = '';
+  // Add patient
+  var apBedId      = null;
+  var apSex        = '';
+  var apPhotoInv   = '';
+  var apPhotoMgmt  = '';
+  // Discharge
+  var discType          = '';
+  var discDocPhoto      = '';
+  var discMccod         = '';
+  var discReferPhoto    = '';
+  var discLastInsertId  = null;
+  var discLastAdvice    = '';
+  var discLastReferTo   = '';
+  var discLastTransferTo= '';
+  var suPhotoB64        = '';
+  var todayDischarges   = [];
+
+  // ── Offline detection ──
+  var isOnline = navigator.onLine;
+  var offlineQueue = [];
+  try {
+    var savedQueue = localStorage.getItem('kmch-offline-queue');
+    if(savedQueue) offlineQueue = JSON.parse(savedQueue) || [];
+  } catch(e){ offlineQueue = []; }
+
+  function saveQueue(){
+    try { localStorage.setItem('kmch-offline-queue', JSON.stringify(offlineQueue)); } catch(e){}
+  }
+
+  window.addEventListener('online', function(){
+    isOnline = true;
+    updateOnlineStatus();
+    toast('Back online! Syncing...', 'ok');
+    // If we were in offline mode with cached user, reload fresh data
+    if(me){
+      loadBeds();
+      loadTodayStats();
+      processSyncQueue();
+    } else {
+      // Was on login page offline - reload page to try login
+      window.location.reload();
+    }
+  });
+  window.addEventListener('offline', function(){
+    isOnline = false;
+    updateOnlineStatus();
+  });
+
+  function updateOnlineStatus(){
+    var badge = document.getElementById('offline-badge');
+    if(!badge) return;
+    badge.style.display = isOnline ? 'none' : 'inline-flex';
+  }
+
+  async function processSyncQueue(){
+    if(!isOnline || offlineQueue.length === 0 || !me) return;
+    toast('Syncing ' + offlineQueue.length + ' pending changes...', 'ok');
+    var failed = [];
+    for(var i = 0; i < offlineQueue.length; i++){
+      var item = offlineQueue[i];
+      try {
+        if(item.type === 'upsert'){
+          var r = await db.from('patient_records').upsert(item.payload, {onConflict:'bed_id'}).select('*').maybeSingle();
+          if(r.error) failed.push(item);
+        } else if(item.type === 'update'){
+          var r = await db.from('patient_records').update(item.payload).eq('bed_id', item.bed_id);
+          if(r.error) failed.push(item);
+        }
+      } catch(e){ failed.push(item); }
+    }
+    offlineQueue = failed;
+    saveQueue();
+
+    // Sync offline photos
+    try {
+      var offlinePhotos = JSON.parse(localStorage.getItem('kmch-offline-photos')||'{}');
+      var photoKeys = Object.keys(offlinePhotos);
+      if(photoKeys.length > 0){
+        toast('Uploading ' + photoKeys.length + ' offline photos...', 'ok');
+        for(var pi = 0; pi < photoKeys.length; pi++){
+          var pkey = photoKeys[pi];
+          var parts = pkey.split('_');
+          var pfield = parts[0]; // 'inv' or 'mgmt'
+          var pbedId = parseInt(parts[1]);
+          var pbase64 = offlinePhotos[pkey];
+          if(!pbase64 || !pbedId) continue;
+          try {
+            var fieldName = pfield === 'inv' ? 'investigations' : 'management';
+            var uploadedUrl = await uploadPhoto(pbase64, pbedId, 'patient', fieldName);
+            var updatePayload = {};
+            updatePayload[pfield === 'inv' ? 'investigations_photo' : 'management_photo'] = uploadedUrl;
+            updatePayload.updated_at = new Date().toISOString();
+            updatePayload.updated_by = me.id;
+            await db.from('patient_records').update(updatePayload).eq('bed_id', pbedId);
+            delete offlinePhotos[pkey];
+          } catch(pe){ console.warn('Photo sync failed for', pkey, pe); }
+        }
+        localStorage.setItem('kmch-offline-photos', JSON.stringify(offlinePhotos));
+      }
+    } catch(pe){ console.warn('Offline photo sync error:', pe); }
+
+    if(failed.length === 0){ toast('All changes synced ✓', 'ok'); await loadBeds(); }
+    else { toast(failed.length + ' changes failed to sync', 'err'); }
+  }
+
+  // ── Helpers ──
+  function busy(on) { document.getElementById('overlay').classList.toggle('on', !!on); }
+  var _tt = null;
+  function toast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg; el.className = 'on' + (type ? ' '+type : '');
+    clearTimeout(_tt); _tt = setTimeout(function(){ el.className=''; }, 3200);
+  }
+  function showPage(id) {
+    if(id !== 'pg-login' && id !== 'pg-detail'){ sessionStorage.setItem('lastPage', id); }
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0,0);
+  }
+  function esc(s) {
+    return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function fv(v) {
+    if (v==null||String(v).trim()==='') return '<span class="f-nil">—</span>';
+    return esc(v).replace(/\n/g,'<br>');
+  }
+  function trunc(s,n){ return !s?'':(s.length>n?s.substr(0,n)+'…':s); }
+  function tri(id){ document.getElementById(id).click(); }
+  function bCls(r){ return r==='nurse'?'b-nurse':r==='intern'?'b-intern':'b-midlevel'; }
+  function bLbl(r){ return !r?'':r==='midlevel'?'Midlevel':r.charAt(0).toUpperCase()+r.slice(1); }
+  function isOcc(r){ return r && r.name && String(r.name).trim()!==''; }
+  function togglePwVis(){
+    var inp=document.getElementById('inp-pw');
+    var eye=document.getElementById('pw-eye');
+    if(!inp) return;
+    if(inp.type==='password'){ inp.type='text'; if(eye) eye.textContent='🙈'; }
+    else { inp.type='password'; if(eye) eye.textContent='👁'; }
+  }
+  function setHdr(pfx){
+    var n=document.getElementById(pfx+'-uname'), b=document.getElementById(pfx+'-badge');
+    if(n&&me) n.textContent=me.name;
+    if(b&&me){ b.textContent=bLbl(me.role); b.className='badge '+bCls(me.role); }
+  }
+
+  // ── Photo modal ──
+  function openPhotoModal(src){ if(!src) return; document.getElementById('modal-img').src=src; document.getElementById('photo-modal').classList.add('on'); }
+  function closePhotoModal(){ document.getElementById('photo-modal').classList.remove('on'); document.getElementById('modal-img').src=''; }
+
+  // ── Photo thumb helpers ──
+  function setThumb(wrapId, imgId, src){
+    var w=document.getElementById(wrapId), i=document.getElementById(imgId);
+    if(src){ i.src=src; w.classList.add('on'); } else { i.src=''; w.classList.remove('on'); }
+  }
+  function onEditPhoto(field, input){
+    var file=input.files&&input.files[0]; if(!file) return;
+    var r=new FileReader();
+    r.onload=function(e){
+      var base64data = e.target.result;
+      if(field==='inv'){
+        ePhotoInv=base64data;
+        setThumb('tw-inv','th-inv',ePhotoInv);
+        if(!isOnline){
+          // Store in localStorage for offline use
+          try {
+            var offlinePhotos = JSON.parse(localStorage.getItem('kmch-offline-photos')||'{}');
+            offlinePhotos['inv_'+curBed] = base64data;
+            localStorage.setItem('kmch-offline-photos', JSON.stringify(offlinePhotos));
+          } catch(ex){ console.warn('Could not cache inv photo:', ex); }
+          toast('Photo saved locally (offline)', 'ok');
+        }
+      } else {
+        ePhotoMgmt=base64data;
+        setThumb('tw-mgmt','th-mgmt',ePhotoMgmt);
+        if(!isOnline){
+          // Store in localStorage for offline use
+          try {
+            var offlinePhotos = JSON.parse(localStorage.getItem('kmch-offline-photos')||'{}');
+            offlinePhotos['mgmt_'+curBed] = base64data;
+            localStorage.setItem('kmch-offline-photos', JSON.stringify(offlinePhotos));
+          } catch(ex){ console.warn('Could not cache mgmt photo:', ex); }
+          toast('Photo saved locally (offline)', 'ok');
+        }
+      }
+    };
+    r.readAsDataURL(file);
+    input.value='';
+  }
+  function clearEditPhoto(field){
+    if(field==='inv'){ ePhotoInv=''; setThumb('tw-inv','th-inv',''); }
+    else { ePhotoMgmt=''; setThumb('tw-mgmt','th-mgmt',''); }
+  }
+  function onApPhoto(field, input){
+    var file=input.files&&input.files[0]; if(!file) return;
+    var r=new FileReader(); r.onload=function(e){
+      if(field==='inv'){ apPhotoInv=e.target.result; setThumb('ap-tw-inv','ap-th-inv',apPhotoInv); }
+      else { apPhotoMgmt=e.target.result; setThumb('ap-tw-mgmt','ap-th-mgmt',apPhotoMgmt); }
+    }; r.readAsDataURL(file); input.value='';
+  }
+  function clearApPhoto(field){
+    if(field==='inv'){ apPhotoInv=''; setThumb('ap-tw-inv','ap-th-inv',''); }
+    else { apPhotoMgmt=''; setThumb('ap-tw-mgmt','ap-th-mgmt',''); }
+  }
+  function onDiscPhoto(type, input){
+    var file=input.files&&input.files[0]; if(!file) return;
+    var r=new FileReader(); r.onload=function(e){
+      if(type==='doc'){ discDocPhoto=e.target.result; setThumb('tw-disc','th-disc',discDocPhoto); }
+      else { discMccod=e.target.result; setThumb('tw-mccod','th-mccod',discMccod); }
+    }; r.readAsDataURL(file); input.value='';
+  }
+  function clearDiscPhoto(type){
+    if(type==='doc'){ discDocPhoto=''; setThumb('tw-disc','th-disc',''); }
+    else { discMccod=''; setThumb('tw-mccod','th-mccod',''); }
+  }
+  function onDiscReferPhoto(input){
+    var file=input.files&&input.files[0]; if(!file) return;
+    var r=new FileReader(); r.onload=function(e){
+      discReferPhoto=e.target.result;
+      setThumb('tw-refer','th-refer',discReferPhoto);
+      setThumb('tw-transfer','th-transfer',discReferPhoto);
+    }; r.readAsDataURL(file); input.value='';
+  }
+  function clearReferPhoto(){
+    discReferPhoto='';
+    setThumb('tw-refer','th-refer','');
+    setThumb('tw-transfer','th-transfer','');
+  }
+  function onSignupPhoto(input){
+    var file=input.files&&input.files[0]; if(!file) return;
+    var r=new FileReader(); r.onload=function(e){
+      suPhotoB64=e.target.result;
+      var prev=document.getElementById('su-photo-preview');
+      prev.src=suPhotoB64; prev.style.display='block';
+    }; r.readAsDataURL(file); input.value='';
+  }
+  function renderViewPhoto(containerId, b64){
+    var el=document.getElementById(containerId); if(!el) return;
+    el.innerHTML=''; if(!b64) return;
+    var img=document.createElement('img'); img.className='view-thumb'; img.src=b64; img.alt='Photo';
+    (function(s){ img.addEventListener('click',function(){ openPhotoModal(s); }); })(b64);
+    el.appendChild(img);
+  }
+
+  // ── Sex pickers ──
+  function pickSex(v, ctx){
+    if(ctx==='edit') editSex=v;
+    else apSex=v;
+    var sel = ctx==='edit' ? '#se1 .btn-sex' : '#ap-step2 .btn-sex';
+    document.querySelectorAll(sel).forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-v')===v);
+    });
+  }
+
+  // ── Auth ──
+  async function init(){
+    busy(true);
+
+    // Set up auth state listener
+    db.auth.onAuthStateChange(function(ev, session){
+      if(ev === 'SIGNED_OUT'){
+        me = null;
+        stopRealtime();
+        sessionStorage.clear();
+        try { localStorage.removeItem('kmch-user-profile'); } catch(e){}
+        showPage('pg-login');
+      }
+    });
+
+    // Check if offline first
+    if(!navigator.onLine){
+      // Try to restore from localStorage cache
+      try {
+        var cachedUser = localStorage.getItem('kmch-user-profile');
+        var cachedBeds = localStorage.getItem('kmch-beds-cache');
+        if(cachedUser){
+          me = JSON.parse(cachedUser);
+          isOnline = false;
+          updateOnlineStatus();
+          // Restore beds from cache
+          if(cachedBeds){
+            var cacheObj = JSON.parse(cachedBeds);
+            recs = Object.values(cacheObj);
+          }
+          // Show app with cached data
+          document.body.classList.add('app-mode');
+          setHdr('beds'); setHdr('apts'); setHdr('srch'); setHdr('det'); setHdr('noti'); setHdr('exp');
+          renderGrid();
+          busy(false);
+          await showAppFromState();
+          toast('Offline mode — showing cached data', 'err');
+          return;
+        }
+      } catch(e){ console.error('Offline cache error:', e); }
+      // No cache available offline
+      busy(false);
+      showPage('pg-login');
+      toast('No internet connection. Please connect to login.', 'err');
+      return;
+    }
+
+    // Online - normal session check with retries
+    var user = null;
+    for(var i = 0; i < 4; i++){
+      try {
+        if(i > 0) await new Promise(function(r){ setTimeout(r, i * 400); });
+        var result = await db.auth.getSession();
+        if(result.data && result.data.session && result.data.session.user){
+          user = result.data.session.user;
+          break;
+        }
+        if(i === 2){
+          var refreshed = await db.auth.refreshSession();
+          if(refreshed.data && refreshed.data.session && refreshed.data.session.user){
+            user = refreshed.data.session.user;
+            break;
+          }
+        }
+      } catch(e){ console.warn('Auth attempt '+(i+1)+' error:', e.message); }
+    }
+
+    busy(false);
+    if(user){ await loadMe(user); }
+    else { showPage('pg-login'); }
+  }
+
+  async function loadMe(authUser){
+    if(me){ showAppFromState(); return; }
+    var cached = null;
+    try {
+      var cachedStr = localStorage.getItem('kmch-user-profile');
+      if(cachedStr){
+        var parsed = JSON.parse(cachedStr);
+        if(parsed && parsed.id === authUser.id) cached = parsed;
+      }
+    } catch(e){}
+    if(cached){
+      me = cached;
+      setHdr('beds'); setHdr('apts'); setHdr('srch'); setHdr('det'); setHdr('noti'); setHdr('exp');
+      document.body.classList.add('app-mode');
+      await loadBeds();
+      await loadTodayStats();
+      await loadNotifications();
+      startRealtime();
+      if(isOnline && offlineQueue.length > 0){ setTimeout(processSyncQueue, 2000); }
+      await showAppFromState();
+      db.from('users').select('name,role').eq('id',authUser.id).single().then(function(r){
+        if(r.data) localStorage.setItem('kmch-user-profile', JSON.stringify({id:authUser.id, email:authUser.email, name:r.data.name, role:r.data.role}));
+      });
+      return;
+    }
+    var r = await db.from('users').select('name,role').eq('id',authUser.id).single();
+    if(!r.data){
+      toast('Cannot load profile. Please try again.','err');
+      showPage('pg-login');
+      return;
+    }
+    me = {id:authUser.id, email:authUser.email, name:r.data.name, role:r.data.role};
+    try { localStorage.setItem('kmch-user-profile', JSON.stringify(me)); } catch(e){}
+    setHdr('beds'); setHdr('apts'); setHdr('srch'); setHdr('det'); setHdr('noti');
+    document.body.classList.add('app-mode');
+    await loadBeds();
+    await loadTodayStats();
+    await loadNotifications();
+    startRealtime();
+    if(isOnline && offlineQueue.length > 0){ setTimeout(processSyncQueue, 2000); }
+    await showAppFromState();
+  }
+
+  async function showAppFromState(){
+    currentAppPage = 'pg-beds';
+    updateSidebarActive();
+    var lastPage = sessionStorage.getItem('lastPage') || 'pg-beds';
+    var savedBed = sessionStorage.getItem('currentBed');
+    if(lastPage === 'pg-detail' && savedBed){
+      var sbn = parseInt(savedBed, 10);
+      if(sbn){ openBed(sbn); return; }
+    }
+    if(lastPage === 'pg-all-patients'){ currentAppPage='pg-all-patients'; showPage(lastPage); renderAllPatients(); updateSidebarActive(); return; }
+    if(lastPage === 'pg-notifications'){ currentAppPage='pg-notifications'; showPage(lastPage); await loadNotifications(); renderNotifications(); updateSidebarActive(); return; }
+    if(lastPage === 'pg-search'){ currentAppPage='pg-search'; showPage(lastPage); updateSidebarActive(); return; }
+    if(lastPage === 'pg-export'){ currentAppPage='pg-export'; showPage('pg-export'); updateSidebarActive(); return; }
+    currentAppPage='pg-beds'; showPage('pg-beds'); updateSidebarActive();
+  }
+
+  async function doLogin(){
+    var email=document.getElementById('inp-email').value.trim().toLowerCase();
+    var pw=document.getElementById('inp-pw').value;
+    var errEl=document.getElementById('login-err');
+    var btn=document.getElementById('btn-login');
+    errEl.classList.remove('on');
+    if(!email||!pw){ errEl.textContent='Email and password required.'; errEl.classList.add('on'); return; }
+    btn.disabled=true; btn.textContent='Signing in…';
+    try {
+      var r=await db.auth.signInWithPassword({email:email,password:pw});
+      if(r.error) throw r.error;
+      if(r.data&&r.data.user) await loadMe(r.data.user);
+    } catch(e){ errEl.textContent=e.message||'Login failed.'; errEl.classList.add('on'); }
+    finally { btn.disabled=false; btn.textContent='Sign In'; }
+  }
+
+  async function doSignout_internal(){
+    try { localStorage.removeItem('kmch-user-profile'); } catch(e){}
+    stopRealtime(); await db.auth.signOut(); me=null;
+    document.body.classList.remove('app-mode');
+    closeSidebar();
+    document.getElementById('inp-email').value='';
+    document.getElementById('inp-pw').value='';
+    document.getElementById('login-err').classList.remove('on');
+    showPage('pg-login');
+  }
+  function doSignOut(){ doSignout_internal(); }
+
+  // ── Signup ──
+  async function doSignup(){
+    var name=document.getElementById('su-name').value.trim();
+    var email=document.getElementById('su-email').value.trim().toLowerCase();
+    var pw=document.getElementById('su-pw').value.trim();
+    var level=document.getElementById('su-level').value;
+    var age=document.getElementById('su-age').value;
+    var errEl=document.getElementById('signup-err');
+    errEl.classList.remove('on');
+    if(!name||!email||!pw||!level){ errEl.textContent='Name, email, password and role are required.'; errEl.classList.add('on'); return; }
+    if(pw.length<6){ errEl.textContent='Password must be at least 6 characters.'; errEl.classList.add('on'); return; }
+
+    var btn=document.getElementById('btn-signup');
+    btn.disabled=true; btn.textContent='Submitting…';
+    try {
+      var payload={name:name,email:email,password:pw,level:level,status:'pending',created_at:new Date().toISOString()};
+      if(age) payload.age=parseInt(age,10);
+      if(suPhotoB64) payload.photo=suPhotoB64;
+      var r=await db.from('signup_requests').insert(payload);
+      if(r.error) throw r.error;
+      document.getElementById('signup-form').style.display='none';
+      document.getElementById('signup-ok').classList.add('on');
+    } catch(e){ errEl.textContent=e.message||'Submission failed.'; errEl.classList.add('on'); }
+    finally { btn.disabled=false; btn.textContent='Submit Request'; }
+  }
+
+  // ── Realtime ──
+  function startRealtime(){
+    stopRealtime();
+    rtChannel = db.channel('ward-rt')
+      .on('postgres_changes',{event:'*',schema:'public',table:'patient_records'},function(){
+        loadBeds();
+      })
+      .subscribe();
+    rtNotifChannel = db.channel('notif-rt')
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},function(payload){
+        var n=payload.new;
+        if(!me) return;
+        if(n.recipient_role===me.role||n.recipient_role==='all'){
+          notifications.unshift(n);
+          unreadCount++;
+          updateBellBadge();
+          if(currentAppPage==='pg-notifications') renderNotifications();
+        }
+      })
+      .subscribe();
+  }
+  function stopRealtime(){
+    if(rtChannel){ db.removeChannel(rtChannel); rtChannel=null; }
+    if(rtNotifChannel){ db.removeChannel(rtNotifChannel); rtNotifChannel=null; }
+  }
+
+  // ── Beds / Grid ──
+  async function loadBeds(){
+    if(!me) return;
+    if(!isOnline){
+      try {
+        var cached = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        var cachedArr = Object.values(cached);
+        if(cachedArr.length > 0){
+          recs = cachedArr;
+          renderGrid();
+          if(currentAppPage==='pg-all-patients') renderAllPatients();
+          if(currentAppPage==='pg-search') renderSearch();
+          return;
+        }
+      } catch(e){}
+      return;
+    }
+    var r=await db.from('patient_records').select('bed_id,name,age,sex,address,registration_no,provisional_dx,is_critical,diagnosis_status').order('bed_id');
+    if(r.error){ toast('Load beds failed: '+r.error.message,'err'); return; }
+    recs=r.data||[];
+    try { var cacheObj={}; recs.forEach(function(r){ cacheObj[r.bed_id]=r; }); localStorage.setItem('kmch-beds-cache', JSON.stringify(cacheObj)); } catch(e){}
+    renderGrid();
+    if(currentAppPage==='pg-all-patients') renderAllPatients();
+    if(currentAppPage==='pg-search') renderSearch();
+  }
+
+  function renderGrid(){
+    var occ=recs.filter(isOcc).length;
+    var male=recs.filter(function(r){ return isOcc(r)&&r.sex==='male'; }).length;
+    var female=recs.filter(function(r){ return isOcc(r)&&r.sex==='female'; }).length;
+    var crit=recs.filter(function(r){ return r.is_critical; }).length;
+    var ongoing=recs.filter(function(r){ return isOcc(r)&&r.diagnosis_status==='ongoing'; }).length;
+    var occEl=document.getElementById('s-occ'),maleEl=document.getElementById('s-male'),femaleEl=document.getElementById('s-female'),critEl=document.getElementById('s-crit'),ongoingEl=document.getElementById('s-ongoing');
+    if(occEl) occEl.textContent=occ;
+    if(maleEl) maleEl.textContent=male;
+    if(femaleEl) femaleEl.textContent=female;
+    if(critEl) critEl.textContent=crit;
+    if(ongoingEl) ongoingEl.textContent=ongoing;
+
+    // Critical alert + ticker
+    var critBeds=recs.filter(function(r){ return r.is_critical; });
+    var alertEl=document.getElementById('critical-alert');
+    var alertTxt=document.getElementById('critical-alert-text');
+    if(critBeds.length&&alertEl){
+      alertTxt.textContent='🔴 '+critBeds.length+' Critical';
+      alertEl.style.display='flex';
+    } else if(alertEl){
+      alertEl.style.display='none';
+    }
+
+    // Ticker ribbon
+    var tickerWrap=document.getElementById('ticker-wrap');
+    var tickerText=document.getElementById('ticker-text');
+    var tickerText2=document.getElementById('ticker-text2');
+    if(tickerWrap){
+      if(critBeds.length){
+        var tickerStr=critBeds.map(function(r){
+          var bLab=r.bed_id>=61?'E'+(r.bed_id-60):'Bed '+r.bed_id;
+          var name=r.name||'Unknown';
+          var dx=r.provisional_dx?(' — '+r.provisional_dx.substr(0,25)):'';
+          return '🔴 CRITICAL: '+bLab+' — '+name+dx+' ';
+        }).join(' | ')+' | ';
+        if(tickerText) tickerText.textContent=tickerStr;
+        if(tickerText2) tickerText2.textContent=tickerStr;
+        tickerWrap.classList.add('on');
+      } else {
+        tickerWrap.classList.remove('on');
+      }
+    }
+  }
+
+  // ── Detail ──
+  async function openBed(num){
+    sessionStorage.setItem('currentBed', num);
+    sessionStorage.setItem('lastPage', 'pg-detail');
+    busy(true);
+    var r=await db.from('patient_records').select('*,updater:updated_by(name,role)').eq('bed_id',num).maybeSingle();
+    if(r.error) r=await db.from('patient_records').select('*').eq('bed_id',num).maybeSingle();
+    busy(false);
+    if(r.error){ toast('Load failed: '+r.error.message,'err'); return; }
+    rec=r.data||{bed_id:num};
+    collapsed={1:false,2:false,3:false,4:false};
+    renderDetail();
+    setHdr('det');
+    showPage('pg-detail');
+    // Load offline cached photos if offline
+    if(!isOnline){
+      try {
+        var offlinePhotos = JSON.parse(localStorage.getItem('kmch-offline-photos')||'{}');
+        if(offlinePhotos['inv_'+num]) { ePhotoInv=offlinePhotos['inv_'+num]; setThumb('tw-inv','th-inv',ePhotoInv); }
+        if(offlinePhotos['mgmt_'+num]) { ePhotoMgmt=offlinePhotos['mgmt_'+num]; setThumb('tw-mgmt','th-mgmt',ePhotoMgmt); }
+      } catch(e){}
+    }
+  }
+
+  function renderDetail(){
+    var role=me.role, occ=isOcc(rec);
+    document.getElementById('det-bed-lbl').textContent=rec.bed_id>=61?'E'+(rec.bed_id-60)+' (Extra)':'BED '+rec.bed_id;
+    document.getElementById('det-pt-name').textContent=occ?(rec.name||'Unknown Patient'):'Empty Bed';
+    var luEl=document.getElementById('det-lu');
+    if(rec.updated_at){
+      var who=(rec.updater&&rec.updater.name)?(rec.updater.name+' ('+rec.updater.role+')'):(rec.updated_by?'staff':'unknown');
+      luEl.textContent='Last updated by: '+who+' · '+new Date(rec.updated_at).toLocaleString();
+    } else { luEl.textContent=''; }
+
+    // Critical button
+    var cb=document.getElementById('btn-crit');
+    if(rec.is_critical){ cb.textContent='✅ Critical'; cb.classList.add('active'); }
+    else { cb.textContent='🔴 Mark Critical'; cb.classList.remove('active'); }
+
+    // Discharge: all roles when occupied
+    document.getElementById('btn-disc').style.display=occ?'':'none';
+
+    // Edit buttons
+    document.getElementById('btn-e1').style.display=(role==='nurse'||role==='midlevel')?'':'none';
+    document.getElementById('btn-e2').style.display=(role==='intern'||role==='midlevel')?'':'none';
+    document.getElementById('btn-e3').style.display=(role==='intern'||role==='midlevel')?'':'none';
+    document.getElementById('btn-e4').style.display=(role==='intern'||role==='midlevel')?'':'none';
+
+    // Mark Ongoing toggle button (intern + midlevel only, when occupied)
+    var ongoingWrap=document.getElementById('btn-ongoing-wrap');
+    var ongoingBtn=document.getElementById('btn-ongoing');
+    if(ongoingWrap){
+      var canMarkOngoing=(role==='intern'||role==='midlevel')&&occ;
+      ongoingWrap.style.display=canMarkOngoing?'':'none';
+      if(ongoingBtn){
+        if(rec.diagnosis_status==='ongoing'){
+          ongoingBtn.textContent='↩️ Undo Ongoing';
+          ongoingBtn.className='btn-ongoing-undo';
+          ongoingBtn.disabled=false; ongoingBtn.style.opacity='';
+        } else {
+          ongoingBtn.textContent='📊 Mark Diagnosis Ongoing';
+          ongoingBtn.className='btn-ongoing';
+          ongoingBtn.disabled=false; ongoingBtn.style.opacity='';
+        }
+      }
+    }
+    // ONGOING badge on section 2 header
+    var ongoingBadge=document.getElementById('ongoing-badge');
+    if(ongoingBadge) ongoingBadge.style.display=rec.diagnosis_status==='ongoing'?'':'none';
+
+    // Section 1
+    document.getElementById('vv-name').innerHTML=fv(rec.name);
+    document.getElementById('vv-age').innerHTML=fv(rec.age!=null?rec.age+' yrs':null);
+    document.getElementById('vv-sex').innerHTML=fv(rec.sex?rec.sex.charAt(0).toUpperCase()+rec.sex.slice(1):null);
+    document.getElementById('vv-addr').innerHTML=fv(rec.address);
+    document.getElementById('vv-reg').innerHTML=fv(rec.registration_no);
+    document.getElementById('vv-bed').innerHTML=fv(rec.bed_id?(rec.bed_id>=61?'E'+(rec.bed_id-60)+' (Extra Bed)':'BED '+rec.bed_id):null);
+
+    // Section 2
+    document.getElementById('vv-cc').innerHTML=fv(rec.chief_complaints);
+    document.getElementById('vv-oe').innerHTML=fv(rec.on_examination);
+    document.getElementById('vv-inv').innerHTML=fv(rec.investigations);
+    renderViewPhoto('vv-inv-ph',rec.investigations_photo||'');
+    document.getElementById('vv-mgmt').innerHTML=fv(rec.management);
+    renderViewPhoto('vv-mgmt-ph',rec.management_photo||'');
+
+    // Section 3
+    document.getElementById('vv-dx').innerHTML=fv(rec.provisional_dx);
+
+    // Section 4
+    document.getElementById('vv-plan').innerHTML=fv(rec.plan_type);
+    document.getElementById('vv-plan-notes').innerHTML=fv(rec.plan_notes);
+
+    // Summaries
+    var p1=[];
+    if(rec.name) p1.push(rec.name);
+    if(rec.age!=null) p1.push(rec.age+' yrs');
+    if(rec.sex) p1.push(rec.sex.charAt(0).toUpperCase()+rec.sex.slice(1));
+    document.getElementById('ss1').textContent=p1.length?p1.join(' · '):'No data';
+    document.getElementById('ss2').textContent=trunc(rec.chief_complaints,60)||'No data';
+    document.getElementById('ss3').textContent=trunc(rec.provisional_dx,60)||'No data';
+    document.getElementById('ss4').textContent=trunc(rec.plan_type,60)||'No data';
+
+    // Apply collapse
+    for(var i=1;i<=4;i++) applySec(i);
+
+    // Reset edit modes
+    for(var j=1;j<=4;j++){
+      document.getElementById('sv'+j).style.display='';
+      document.getElementById('se'+j).style.display='none';
+    }
+  }
+
+  // ── Collapse ──
+  function toggleSec(n){ collapsed[n]=!collapsed[n]; applySec(n); }
+  function applySec(n){
+    var body=document.getElementById('sb'+n);
+    var arrow=document.getElementById('arr'+n);
+    var sum=document.getElementById('ss'+n);
+    var c=collapsed[n];
+    if(body) body.classList.toggle('coll',c);
+    if(arrow) arrow.classList.toggle('dn',c);
+    if(sum) sum.classList.toggle('on',c);
+  }
+
+  // ── Section edit ──
+  function startEdit(n){
+    if(collapsed[n]){ collapsed[n]=false; applySec(n); }
+    document.getElementById('sv'+n).style.display='none';
+    document.getElementById('se'+n).style.display='';
+    if(n===1){
+      document.getElementById('ei-name').value=rec.name||'';
+      document.getElementById('ei-age').value=rec.age!=null?rec.age:'';
+      document.getElementById('ei-addr').value=rec.address||'';
+      document.getElementById('ei-reg').value=rec.registration_no||'';
+      editSex=rec.sex||'';
+      document.querySelectorAll('#se1 .btn-sex').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-v')===editSex); });
+    } else if(n===2){
+      document.getElementById('ei-cc').value=rec.chief_complaints||'';
+      document.getElementById('ei-oe').value=rec.on_examination||'';
+      document.getElementById('ei-inv').value=rec.investigations||'';
+      document.getElementById('ei-mgmt').value=rec.management||'';
+      ePhotoInv=rec.investigations_photo||'';
+      ePhotoMgmt=rec.management_photo||'';
+      setThumb('tw-inv','th-inv',ePhotoInv);
+      setThumb('tw-mgmt','th-mgmt',ePhotoMgmt);
+      ['fi-inv-cam','fi-inv-gal','fi-mgmt-cam','fi-mgmt-gal'].forEach(function(id){ document.getElementById(id).value=''; });
+    } else if(n===3){
+      document.getElementById('ei-dx').value=rec.provisional_dx||'';
+    } else if(n===4){
+      var pt=rec.plan_type||'';
+      var isOth=pt.startsWith('Others: ')||pt==='Others';
+      var planSel=document.getElementById('ei-plan');
+      if(planSel) planSel.value=isOth?'Others':pt;
+      var othWrap=document.getElementById('ei-plan-others-wrap');
+      var othInp=document.getElementById('ei-plan-others');
+      if(othWrap) othWrap.style.display=isOth?'':'none';
+      if(othInp) othInp.value=pt.startsWith('Others: ')?pt.slice(8):'';
+      var notesInp=document.getElementById('ei-plan-notes');
+      if(notesInp) notesInp.value=rec.plan_notes||'';
+    }
+  }
+  function onPlanTypeChange(){
+    var v=document.getElementById('ei-plan').value;
+    var w=document.getElementById('ei-plan-others-wrap');
+    if(w) w.style.display=(v==='Others')?'':'none';
+  }
+  function cancelEdit(n){
+    document.getElementById('sv'+n).style.display='';
+    document.getElementById('se'+n).style.display='none';
+  }
+
+  async function saveSection(n){
+    var updates={};
+    if(n===1){
+      var nm=document.getElementById('ei-name').value.trim();
+      var ag=document.getElementById('ei-age').value;
+      updates={name:nm||null,age:ag!==''?parseInt(ag,10):null,sex:editSex||null,
+        address:document.getElementById('ei-addr').value.trim()||null,
+        registration_no:document.getElementById('ei-reg').value.trim()||null};
+    } else if(n===2){
+      var invPhoto=ePhotoInv||null;
+      var mgmtPhoto=ePhotoMgmt||null;
+      if(invPhoto&&invPhoto.startsWith('data:')){
+        var existingInvPhoto=rec?rec.investigations_photo:null;
+        if(existingInvPhoto&&existingInvPhoto.length>0){ console.log('Compressing investigation photo (not first)'); invPhoto=await compressImage(invPhoto,1.5); }
+        else { console.log('Keeping investigation photo original (first)'); }
+        invPhoto=await uploadPhoto(invPhoto,rec.bed_id,rec.name,'investigations');
+      }
+      if(mgmtPhoto&&mgmtPhoto.startsWith('data:')){
+        var existingMgmtPhoto=rec?rec.management_photo:null;
+        if(existingMgmtPhoto&&existingMgmtPhoto.length>0){ console.log('Compressing management photo (not first)'); mgmtPhoto=await compressImage(mgmtPhoto,1.5); }
+        else { console.log('Keeping management photo original (first)'); }
+        mgmtPhoto=await uploadPhoto(mgmtPhoto,rec.bed_id,rec.name,'management');
+      }
+      updates={chief_complaints:document.getElementById('ei-cc').value.trim()||null,
+        on_examination:document.getElementById('ei-oe').value.trim()||null,
+        investigations:document.getElementById('ei-inv').value.trim()||null,
+        investigations_photo:invPhoto,
+        management:document.getElementById('ei-mgmt').value.trim()||null,
+        management_photo:mgmtPhoto};
+    } else if(n===3){
+      updates={provisional_dx:document.getElementById('ei-dx').value.trim()||null};
+    } else if(n===4){
+      var ptSel=document.getElementById('ei-plan').value;
+      var specTxt=(document.getElementById('ei-plan-others').value||'').trim();
+      var planTypeVal=(ptSel==='Others'&&specTxt)?('Others: '+specTxt):(ptSel||null);
+      updates={plan_type:planTypeVal,plan_notes:(document.getElementById('ei-plan-notes').value||'').trim()||null};
+    }
+    updates.updated_by=me.id; updates.updated_at=new Date().toISOString();
+    var sb=document.querySelector('#se'+n+' .btn-save');
+    if(sb){ sb.disabled=true; sb.textContent='Saving…'; }
+    busy(true);
+    var payload=Object.assign({},rec.id?{id:rec.id}:{},{bed_id:rec.bed_id},updates);
+    try { var bCache=JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}'); bCache[payload.bed_id]=Object.assign(bCache[payload.bed_id]||{},payload); localStorage.setItem('kmch-beds-cache',JSON.stringify(bCache)); } catch(e){}
+    if(!isOnline){
+      offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
+      saveQueue();
+      rec = Object.assign(rec||{}, payload);
+      busy(false);
+      if(sb){ sb.disabled=false; sb.textContent='Save'; }
+      toast('Saved locally (offline) — will sync when online', 'ok');
+      cancelEdit(n); renderDetail();
+      return;
+    }
+    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*,updater:updated_by(name,role)').maybeSingle();
+    if(r.error) r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    busy(false);
+    if(sb){ sb.disabled=false; sb.textContent='Save'; }
+    if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
+    rec=r.data||Object.assign({},rec,updates);
+    cancelEdit(n); renderDetail(); toast('Saved','ok'); loadBeds();
+  }
+
+  // ── Dashboard section collapse ──
+  function toggleDashSection(id){
+    var el=document.getElementById(id);
+    if(el) el.classList.toggle('collapsed');
+  }
+
+  // ── Critical toggle ──
+  async function toggleCritical(){
+    var newVal=!rec.is_critical;
+    if(!isOnline){
+      var critPayload={is_critical:newVal, updated_by:me.id, updated_at:new Date().toISOString()};
+      offlineQueue.push({type:'update', payload:critPayload, bed_id:rec.bed_id, ts:Date.now()});
+      saveQueue();
+      rec.is_critical=newVal;
+      var recInGrid=recs.find(function(x){ return x.bed_id===rec.bed_id; });
+      if(recInGrid) recInGrid.is_critical=newVal;
+      toast((newVal?'Marked critical':'Unmarked critical')+' (offline — will sync)', 'ok');
+      renderDetail(); renderGrid();
+      return;
+    }
+    // Optimistic update — immediate UI response
+    rec.is_critical=newVal;
+    var recInGrid=recs.find(function(x){ return x.bed_id===rec.bed_id; });
+    if(recInGrid) recInGrid.is_critical=newVal;
+    renderDetail(); renderGrid();
+    // DB update
+    busy(true);
+    var r;
+    if(rec.id) r=await db.from('patient_records').update({is_critical:newVal,updated_by:me.id,updated_at:new Date().toISOString()}).eq('id',rec.id).select('*').maybeSingle();
+    else r=await db.from('patient_records').update({is_critical:newVal,updated_by:me.id,updated_at:new Date().toISOString()}).eq('bed_id',rec.bed_id).select('*').maybeSingle();
+    busy(false);
+    if(r.error){
+      // Revert optimistic update
+      rec.is_critical=!newVal;
+      if(recInGrid) recInGrid.is_critical=!newVal;
+      renderDetail(); renderGrid();
+      toast('Update failed: '+r.error.message,'err'); return;
+    }
+    rec=r.data||Object.assign({},rec,{is_critical:newVal});
+    var idx=recs.findIndex(function(x){ return x.bed_id===rec.bed_id; });
+    if(idx>=0) recs[idx].is_critical=rec.is_critical;
+    renderDetail(); renderGrid();
+    toast(newVal?'Marked Critical':'Unmarked Critical',newVal?'err':'ok');
+    if(newVal){
+      var markedByName=me.name+' ('+me.role+')';
+      var critMsg='🔴 CRITICAL: Bed '+rec.bed_id+' — '+rec.name+' — marked by '+markedByName;
+      await sendNotification('all',critMsg,rec.bed_id,rec.name,'critical');
+    } else {
+      var delR=await db.from('notifications').delete().eq('bed_id',rec.bed_id).eq('type','critical');
+      console.log('Deleted critical notifs:',delR);
+      var removedByName=me.name+' ('+me.role+')';
+      var removeMsg='✅ Critical REMOVED: Bed '+rec.bed_id+' — '+(rec.name||'')+' — removed by '+removedByName;
+      await sendNotification('all',removeMsg,rec.bed_id,rec.name,'info');
+      notifications=[];
+      unreadCount=0;
+      await loadNotifications();
+      updateBellBadge();
+    }
+  }
+
+  // ── Add Patient ──
+  function openAddPatient(){
+    apBedId=null; apSex=''; apPhotoInv=''; apPhotoMgmt='';
+    setThumb('ap-tw-inv','ap-th-inv',''); setThumb('ap-tw-mgmt','ap-th-mgmt','');
+    ['ap-name','ap-age','ap-addr','ap-reg','ap-cc','ap-oe','ap-inv','ap-dx','ap-mgmt'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.value='';
+    });
+    document.querySelectorAll('#ap-step2 .btn-sex').forEach(function(b){ b.classList.remove('on'); });
+    apGoTo(1);
+    document.getElementById('ap-modal').classList.add('on');
+  }
+  function closeAddPatient(){ document.getElementById('ap-modal').classList.remove('on'); }
+
+  function apGoTo(step){
+    [1,2,3].forEach(function(n){
+      var el=document.getElementById('ap-step'+n);
+      if(el) el.style.display=(n===step?'':'none');
+      var dot=document.getElementById('ap-dot'+n);
+      if(dot) dot.classList.toggle('on',n<=step);
+    });
+    var subs=['Step 1 of 3 — Select Bed','Step 2 of 3 — Patient Particulars','Step 3 of 3 — Clinical Details'];
+    document.getElementById('ap-sub').textContent=subs[step-1];
+
+    if(step===1){
+      var map={};
+      recs.forEach(function(r){ if(r.bed_id) map[r.bed_id]=r; });
+      var apGroups=[
+        {label:'👨 Male Ward',sub:'Beds 1–32',range:[1,32]},
+        {label:'👩 Female Ward',sub:'Beds 33–60',range:[33,60]},
+        {label:'➕ Extra Beds',sub:'E1–E5',range:[61,65]}
+      ];
+      var apContainer=document.getElementById('ap-bed-container');
+      var none=document.getElementById('ap-bed-none');
+      var hasEmpty=false;
+      var html='';
+      apGroups.forEach(function(g){
+        html+='<div class="ward-sec"><div class="ward-sec-hdr"><span>'+g.label+'</span><span class="ward-badge">'+g.sub+'</span></div><div class="empty-bed-grid">';
+        for(var i=g.range[0];i<=g.range[1];i++){
+          var r=map[i], occupied=isOcc(r);
+          var bedN=i>=61?'E'+(i-60):String(i);
+          if(!occupied) hasEmpty=true;
+          if(occupied){
+            html+='<button class="bed-sel-btn bed-sel-occ" data-bed="'+i+'" disabled>'
+              +bedN+'<span class="bso-name">'+esc(r.name)+'</span></button>';
+          } else {
+            html+='<button class="bed-sel-btn'+(apBedId===i?' sel':'')+'" data-bed="'+i+'" onclick="apSelectBed('+i+')">'+bedN+'</button>';
+          }
+        }
+        html+='</div></div>';
+      });
+      if(apContainer) apContainer.innerHTML=html;
+      if(none) none.style.display=hasEmpty?'none':'';
+    }
+    if(step===2 && apBedId){
+      document.getElementById('ap-bed-display').value=apBedId>=61?'E'+(apBedId-60)+' (Extra Bed)':'BED '+apBedId;
+    }
+  }
+
+  function apSelectBed(n){
+    apBedId=n;
+    document.querySelectorAll('#ap-bed-container .bed-sel-btn:not(.bed-sel-occ)').forEach(function(b){ b.classList.toggle('sel',parseInt(b.getAttribute('data-bed'))===n); });
+    setTimeout(function(){ apGoTo(2); },200);
+  }
+
+  async function saveNewPatient(){
+    var nm=document.getElementById('ap-name').value.trim();
+    if(!nm){ toast('Patient name is required','err'); return; }
+    if(!apBedId){ toast('Select a bed','err'); return; }
+    var ag=document.getElementById('ap-age').value;
+    var apInvPhoto=apPhotoInv||null;
+    var apMgmtPhoto=apPhotoMgmt||null;
+    // New patient: always first photo - keep original size, no compression
+    if(apInvPhoto&&apInvPhoto.startsWith('data:')) apInvPhoto=await uploadPhoto(apInvPhoto,apBedId,nm,'investigations');
+    if(apMgmtPhoto&&apMgmtPhoto.startsWith('data:')) apMgmtPhoto=await uploadPhoto(apMgmtPhoto,apBedId,nm,'management');
+    var payload={
+      bed_id:apBedId, name:nm,
+      age:ag!==''?parseInt(ag,10):null,
+      sex:apSex||null,
+      address:document.getElementById('ap-addr').value.trim()||null,
+      registration_no:document.getElementById('ap-reg').value.trim()||null,
+      chief_complaints:document.getElementById('ap-cc').value.trim()||null,
+      on_examination:document.getElementById('ap-oe').value.trim()||null,
+      investigations:document.getElementById('ap-inv').value.trim()||null,
+      investigations_photo:apInvPhoto,
+      provisional_dx:document.getElementById('ap-dx').value.trim()||null,
+      management:document.getElementById('ap-mgmt').value.trim()||null,
+      management_photo:apMgmtPhoto,
+      is_critical:false,
+      updated_by:me.id, updated_at:new Date().toISOString(),
+    };
+    if(!isOnline){
+      offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
+      saveQueue();
+      var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
+      if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
+      else recs.push(payload);
+      renderGrid();
+      closeAddPatient();
+      toast('Patient saved locally (offline) — will sync when online', 'ok');
+      return;
+    }
+    busy(true);
+    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    busy(false);
+    if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
+    closeAddPatient(); toast('Patient added','ok'); loadBeds();
+  }
+
+  // ── Discharge ──
+  function openDischarge(){
+    discType=''; discDocPhoto=''; discMccod=''; discReferPhoto='';
+    setThumb('tw-disc','th-disc',''); setThumb('tw-mccod','th-mccod','');
+    setThumb('tw-refer','th-refer',''); setThumb('tw-transfer','th-transfer','');
+    document.getElementById('disc-advice').value='';
+    document.getElementById('disc-absent').value='';
+    document.getElementById('disc-pdf-cb').checked=true;
+    var rt=document.getElementById('disc-refer-to'); if(rt) rt.value='';
+    var tt=document.getElementById('disc-transfer-to'); if(tt) tt.value='';
+    var de=document.getElementById('disc-doc-err'); if(de) de.classList.remove('on');
+    var me2=document.getElementById('disc-mccod-err'); if(me2) me2.classList.remove('on');
+    var re=document.getElementById('disc-refer-err'); if(re) re.classList.remove('on');
+    var te=document.getElementById('disc-transfer-err'); if(te) te.classList.remove('on');
+    ['disc-s1','disc-s2a','disc-s2b','disc-s2c','disc-s2d','disc-s2e'].forEach(function(id){
+      document.getElementById(id).classList.remove('on');
+    });
+    document.getElementById('disc-s1').classList.add('on');
+    document.getElementById('disc-modal-title').textContent='Discharge — '+(rec.name||'Patient');
+    document.getElementById('disc-modal').classList.add('on');
+  }
+  function closeDischarge(){ document.getElementById('disc-modal').classList.remove('on'); }
+
+  function selDiscType(type){
+    discType=type;
+    document.querySelectorAll('.disc-type-btn').forEach(function(b){ b.classList.remove('sel'); });
+    setTimeout(function(){
+      ['disc-s1','disc-s2a','disc-s2b','disc-s2c','disc-s2d','disc-s2e'].forEach(function(id){
+        document.getElementById(id).classList.remove('on');
+      });
+      if(type==='advice'||type==='request'||type==='dorb') document.getElementById('disc-s2a').classList.add('on');
+      else if(type==='deceased') document.getElementById('disc-s2b').classList.add('on');
+      else if(type==='refer') document.getElementById('disc-s2d').classList.add('on');
+      else if(type==='transfer') document.getElementById('disc-s2e').classList.add('on');
+      else document.getElementById('disc-s2c').classList.add('on');
+    },180);
+  }
+  function discBack(){
+    ['disc-s2a','disc-s2b','disc-s2c','disc-s2d','disc-s2e'].forEach(function(id){ document.getElementById(id).classList.remove('on'); });
+    document.getElementById('disc-s1').classList.add('on');
+    var de=document.getElementById('disc-doc-err'); if(de) de.classList.remove('on');
+    var me2=document.getElementById('disc-mccod-err'); if(me2) me2.classList.remove('on');
+    var re=document.getElementById('disc-refer-err'); if(re) re.classList.remove('on');
+    var te=document.getElementById('disc-transfer-err'); if(te) te.classList.remove('on');
+    discType='';
+  }
+
+  var typeLabels={advice:'Discharge with Advice',request:'Discharge on Request (DAMA)',dorb:'Discharge on Request Bond (DORB)',deceased:'Deceased',absent:'Absent (Left without notice)',refer:'Refer to Higher Center',transfer:'Transfer (within hospital)'};
+
+  async function confirmDischarge(){
+    if(!discType){ toast('Select discharge type','err'); return; }
+    var docErr=document.getElementById('disc-doc-err');
+    var mccodErr=document.getElementById('disc-mccod-err');
+    if(discType==='advice'&&!discDocPhoto){
+      if(docErr) docErr.classList.add('on'); return;
+    }
+    if(docErr) docErr.classList.remove('on');
+    if(discType==='deceased'&&!discMccod){
+      if(mccodErr) mccodErr.classList.add('on'); return;
+    }
+    if(mccodErr) mccodErr.classList.remove('on');
+    var referErr=document.getElementById('disc-refer-err');
+    var transferErr=document.getElementById('disc-transfer-err');
+    if(discType==='refer'){
+      var referTo=document.getElementById('disc-refer-to').value;
+      if(!referTo||!discReferPhoto){ if(referErr) referErr.classList.add('on'); return; }
+    }
+    if(referErr) referErr.classList.remove('on');
+    if(discType==='transfer'){
+      var transferTo2=document.getElementById('disc-transfer-to').value;
+      if(!transferTo2||!discReferPhoto){ if(transferErr) transferErr.classList.add('on'); return; }
+    }
+    if(transferErr) transferErr.classList.remove('on');
+
+    discLastAdvice=(document.getElementById('disc-advice').value||'').trim();
+    discLastReferTo=discType==='refer'?(document.getElementById('disc-refer-to').value||''):'';
+    discLastTransferTo=discType==='transfer'?(document.getElementById('disc-transfer-to').value||''):'';
+
+    var btn=document.querySelector('#disc-modal .btn-disc-confirm');
+    if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+    busy(true);
+
+    var summaryTxt=
+      'KuMCH UNIT 3 DISCHARGE RECORD\n'+
+      '============================\n'+
+      'Date: '+new Date().toLocaleString()+'\n'+
+      'Bed: '+(rec.bed_id>=61?'Extra '+(rec.bed_id-60):'Bed '+rec.bed_id)+'\n'+
+      'Reg No: '+(rec.registration_no||'—')+'\n'+
+      '\nPATIENT\n'+
+      'Name: '+(rec.name||'—')+'\n'+
+      'Age: '+(rec.age!=null?rec.age+' yrs':'—')+'\n'+
+      'Sex: '+(rec.sex||'—')+'\n'+
+      'Address: '+(rec.address||'—')+'\n'+
+      '\nCLINICAL\n'+
+      'Chief Complaints: '+(rec.chief_complaints||'—')+'\n'+
+      'On Examination: '+(rec.on_examination||'—')+'\n'+
+      'Investigations: '+(rec.investigations||'—')+'\n'+
+      'Management: '+(rec.management||'—')+'\n'+
+      '\nDIAGNOSIS\n'+
+      (rec.provisional_dx||'—')+'\n'+
+      '\nDISCHARGE\n'+
+      'Type: '+discType+'\n'+
+      'Referred To: '+(discLastReferTo||'—')+'\n'+
+      'Transferred To: '+(discLastTransferTo||'—')+'\n'+
+      'Advice: '+(discLastAdvice||'—')+'\n'+
+      '\nDischarged By: '+me.name+' ('+me.role+')\n'+
+      '============================';
+
+    var drPayload={
+      bed_id:rec.bed_id,
+      name:rec.name,
+      age:rec.age,
+      sex:rec.sex,
+      provisional_dx:rec.provisional_dx,
+      discharge_type:discType,
+      refer_to:discLastReferTo||null,
+      transfer_to:discLastTransferTo||null,
+      discharge_advice:discLastAdvice||null,
+      discharged_at:new Date().toISOString(),
+      discharged_by:me.id,
+      discharged_by_name:me.name+' ('+me.role+')',
+      discharge_summary:summaryTxt,
+    };
+
+    var dr=await db.from('discharge_records').insert(drPayload).select('id').maybeSingle();
+    busy(false);
+    if(btn){ btn.disabled=false; btn.textContent='Confirm Discharge'; }
+    if(dr.error){ toast('Discharge save failed: '+dr.error.message,'err'); return; }
+
+    discLastInsertId=(dr.data&&dr.data.id)||null;
+    closeDischarge();
+    var fd=document.getElementById('modal-final-discharge');
+    var ft=document.getElementById('fdisc-title');
+    var fs=document.getElementById('fdisc-sub');
+    if(ft) ft.textContent='Discharge '+(rec.name||'Patient')+'?';
+    if(fs) fs.textContent='Bed '+rec.bed_id+' will be cleared';
+    if(fd) fd.classList.add('on');
+  }
+
+  async function deletePatient(){
+    try {
+      var photosToDelete=[];
+      var checkUrls=[
+        rec.investigations_photo,
+        rec.management_photo,
+        discDocPhoto,
+        discMccod,
+        discReferPhoto,
+      ];
+      checkUrls.forEach(function(url){
+        if(url&&url.includes('/patient-photos/')){
+          var path=url.split('/patient-photos/')[1];
+          if(path) photosToDelete.push(path);
+        }
+      });
+      if(photosToDelete.length>0){
+        await db.storage.from('patient-photos').remove(photosToDelete);
+      }
+    } catch(e){
+      console.error('Photo cleanup error:',e);
+    }
+    var del=rec.id
+      ?await db.from('patient_records').delete().eq('id',rec.id)
+      :await db.from('patient_records').delete().eq('bed_id',rec.bed_id);
+    if(del.error) console.error('deletePatient:',del.error.message);
+  }
+
+  async function downloadAndDischarge(){
+    printDischargeSummary(rec, discType, discLastAdvice, discLastReferTo, discLastTransferTo);
+    setTimeout(async function(){
+      await deletePatient();
+      var fd=document.getElementById('modal-final-discharge');
+      if(fd) fd.classList.remove('on');
+      toast('Downloaded & bed cleared ✓','ok');
+      rec={bed_id:rec.bed_id};
+      await loadBeds(); await loadTodayStats();
+      sessionStorage.removeItem('currentBed');
+      sessionStorage.removeItem('cameFromBed');
+      showPage('pg-beds'); renderGrid();
+    },800);
+  }
+
+  async function dischargeNow(){
+    await deletePatient();
+    var fd=document.getElementById('modal-final-discharge');
+    if(fd) fd.classList.remove('on');
+    toast('Patient discharged ✓','ok');
+    rec={bed_id:rec.bed_id};
+    await loadBeds(); await loadTodayStats();
+    sessionStorage.removeItem('currentBed');
+    sessionStorage.removeItem('cameFromBed');
+    showPage('pg-beds'); renderGrid();
+  }
+
+  async function backFromFinalDischarge(){
+    if(discLastInsertId){
+      await db.from('discharge_records').delete().eq('id',discLastInsertId);
+      discLastInsertId=null;
+    }
+    var fd=document.getElementById('modal-final-discharge');
+    if(fd) fd.classList.remove('on');
+  }
+
+  // ── PDF ──
+  function printDischargeSummary(r, dtype, advice, referTo, transferTo){
+    var now=new Date();
+    var dateStr=now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})+', '+now.toLocaleTimeString();
+    var dv=function(v){ return v&&String(v).trim()?String(v):'—'; };
+    var de=function(v){ return esc(dv(v)); };
+    var rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+    var thin='───────────────────────────────────────────────';
+    var planText=(r.plan_type||'')+(r.plan_notes?' — '+r.plan_notes:'');
+    var dischBy=(me&&me.name?me.name:'')+(me&&me.role?' ('+me.role+')':'');
+    var html='<div style="font-family:\'Times New Roman\',serif;font-size:14px;color:#000;padding:40px;max-width:800px;margin:0 auto;line-height:1.8">'
+      +'<div style="text-align:center">'+rule+'</div>'
+      +'<div style="text-align:center;font-size:18pt;font-weight:bold;margin:6pt 0 2pt">KUSHTIA MEDICAL COLLEGE HOSPITAL</div>'
+      +'<div style="text-align:center;font-size:12pt;margin-bottom:2pt">Department of Medicine — Unit 3</div>'
+      +'<div style="text-align:center;font-size:14pt;font-weight:bold;margin-bottom:4pt">PATIENT DISCHARGE RECORD</div>'
+      +'<div style="text-align:center;margin-bottom:14pt">'+rule+'</div>'
+      +'<table style="width:100%;margin-bottom:12pt;border-collapse:collapse"><tbody>'
+      +'<tr><td style="width:140pt;font-weight:bold;vertical-align:top">Discharge Date</td><td>: '+de(dateStr)+'</td></tr>'
+      +'<tr><td style="font-weight:bold;vertical-align:top">Bed No</td><td>: '+esc(String(r.bed_id||''))+'</td></tr>'
+      +'<tr><td style="font-weight:bold;vertical-align:top">Reg No</td><td>: '+de(r.registration_no)+'</td></tr>'
+      +'</tbody></table>'
+      +'<div style="font-weight:bold;font-size:11pt;margin:8pt 0 1pt">PATIENT PARTICULARS</div>'
+      +'<div style="margin-bottom:6pt">'+thin+'</div>'
+      +'<table style="width:100%;margin-bottom:12pt;border-collapse:collapse"><tbody>'
+      +'<tr><td style="width:140pt;font-weight:bold;vertical-align:top">Name</td><td>: '+de(r.name)+'</td></tr>'
+      +'<tr><td style="font-weight:bold;vertical-align:top">Age</td><td>: '+(r.age!=null?r.age+' years':'—')+'</td></tr>'
+      +'<tr><td style="font-weight:bold;vertical-align:top">Sex</td><td>: '+de(r.sex?r.sex.charAt(0).toUpperCase()+r.sex.slice(1):null)+'</td></tr>'
+      +'<tr><td style="font-weight:bold;vertical-align:top">Address</td><td>: '+de(r.address)+'</td></tr>'
+      +'</tbody></table>'
+      +'<div style="font-weight:bold;font-size:11pt;margin:8pt 0 1pt">CLINICAL DETAILS</div>'
+      +'<div style="margin-bottom:6pt">'+thin+'</div>'
+      +'<div style="margin-bottom:8pt"><div style="font-weight:bold">Chief Complaints :</div><div style="padding-left:16pt">'+de(r.chief_complaints)+'</div></div>'
+      +'<div style="margin-bottom:8pt"><div style="font-weight:bold">On Examination :</div><div style="padding-left:16pt">'+de(r.on_examination)+'</div></div>'
+      +'<div style="margin-bottom:8pt"><div style="font-weight:bold">Investigations :</div><div style="padding-left:16pt">'+de(r.investigations)+'</div></div>'
+      +'<div style="margin-bottom:8pt"><div style="font-weight:bold">Management :</div><div style="padding-left:16pt">'+de(r.management)+'</div></div>'
+      +'<div style="font-weight:bold;font-size:11pt;margin:8pt 0 1pt">DIAGNOSIS</div>'
+      +'<div style="margin-bottom:6pt">'+thin+'</div>'
+      +'<div style="margin-bottom:12pt">'+de(r.provisional_dx)+'</div>'
+      +'<div style="font-weight:bold;font-size:11pt;margin:8pt 0 1pt">PLAN</div>'
+      +'<div style="margin-bottom:6pt">'+thin+'</div>'
+      +'<div style="margin-bottom:12pt">'+de(planText||null)+'</div>'
+      +'<div style="font-weight:bold;font-size:11pt;margin:8pt 0 1pt">DISCHARGE DETAILS</div>'
+      +'<div style="margin-bottom:6pt">'+thin+'</div>'
+      +'<table style="width:100%;margin-bottom:6pt;border-collapse:collapse"><tbody>'
+      +'<tr><td style="width:140pt;font-weight:bold;vertical-align:top">Type</td><td>: '+esc(typeLabels[dtype]||dtype||'—')+'</td></tr>'
+      +(referTo?'<tr><td style="font-weight:bold;vertical-align:top">Referred To</td><td>: '+esc(referTo)+'</td></tr>':'')
+      +(transferTo?'<tr><td style="font-weight:bold;vertical-align:top">Transferred To</td><td>: '+esc(transferTo)+'</td></tr>':'')
+      +'</tbody></table>'
+      +'<div style="font-weight:bold">Advice / Notes :</div>'
+      +'<div style="padding-left:16pt;margin-bottom:14pt">'+de(advice)+'</div>'
+      +'<table style="width:100%;border-collapse:collapse;margin-bottom:6pt"><tbody>'
+      +'<tr><td style="font-weight:bold;vertical-align:top">Discharged By</td><td>: '+esc(dischBy||'—')+'</td></tr>'
+      +'</tbody></table>'
+      +'<div style="text-align:center;margin-top:14pt">'+rule+'</div>'
+      +'</div>';
+    document.getElementById('print-area').innerHTML=html;
+    window.print();
+  }
+
+  function goBack(){
+    sessionStorage.removeItem('currentBed');
+    sessionStorage.removeItem('cameFromBed');
+    navTo(currentAppPage||'pg-beds');
+    if(currentAppPage==='pg-all-patients') renderAllPatients();
+    else renderGrid();
+  }
+
+  // ── Notifications ──
+  function timeAgo(dateStr){
+    if(!dateStr) return '';
+    var d=new Date(dateStr), now=new Date(), diff=(now-d)/1000;
+    if(diff<60) return 'just now';
+    if(diff<3600) return Math.floor(diff/60)+'m ago';
+    if(diff<86400) return Math.floor(diff/3600)+'h ago';
+    return Math.floor(diff/86400)+'d ago';
+  }
+  function updateBellBadge(){
+    document.querySelectorAll('.bell-count').forEach(function(el){
+      if(unreadCount>0){ el.textContent=unreadCount>99?'99+':String(unreadCount); el.classList.add('on'); }
+      else { el.textContent=''; el.classList.remove('on'); }
+    });
+    var sb=document.getElementById('sb-notif-badge');
+    if(sb){
+      if(unreadCount>0){ sb.textContent=unreadCount>99?'99+':String(unreadCount); sb.classList.add('on'); }
+      else { sb.textContent=''; sb.classList.remove('on'); }
+    }
+  }
+  async function loadNotifications(){
+    if(!me) return;
+    try {
+      var result=await db.from('notifications').select('*')
+        .or('recipient_role.eq.'+me.role+',recipient_role.eq.all')
+        .order('created_at',{ascending:false}).limit(50);
+      if(result.error){
+        console.error('loadNotifications error:',result.error.message); return;
+      }
+      notifications=result.data||[];
+      unreadCount=notifications.filter(function(n){ return !n.is_read; }).length;
+      updateBellBadge();
+    } catch(e){
+      console.error('loadNotifications exception:',e);
+    }
+  }
+  function renderNotifications(){
+    var list=document.getElementById('notif-list');
+    var empty=document.getElementById('notif-empty');
+    if(!list) return;
+    if(!notifications.length){
+      list.innerHTML=''; if(empty) empty.style.display=''; return;
+    }
+    if(empty) empty.style.display='none';
+    var typeIcon={info:'🩺',ongoing:'⚠️',critical:'🔴'};
+    list.innerHTML=notifications.map(function(n){
+      var bedLbl=n.bed_id>=(61)?'E'+(n.bed_id-60):'Bed '+n.bed_id;
+      var icon=typeIcon[n.type]||'🔔';
+      var readCls=n.is_read?'read':'unread';
+      var typeCls='t-'+(n.type||'info');
+      return '<div class="notif-item '+readCls+' '+typeCls+'" onclick="markNotifRead(\''+n.id+'\','+n.bed_id+')">'
+        +'<div class="notif-icon">'+icon+'</div>'
+        +'<div class="notif-body">'
+        +'<div class="notif-msg">'+esc(n.message||'')+'</div>'
+        +(n.bed_id?'<div class="notif-sub">'+bedLbl+(n.patient_name?' · '+esc(n.patient_name):'')+'</div>':'')
+        +'<div class="notif-time">'+timeAgo(n.created_at)+'</div>'
+        +'</div>'
+        +(!n.is_read?'<div class="notif-unread-dot"></div>':'')
+        +'</div>';
+    }).join('');
+  }
+  async function markNotifRead(notifId, bedId){
+    var n=notifications.find(function(x){ return x.id===notifId; });
+    if(n&&!n.is_read){
+      n.is_read=true;
+      unreadCount=Math.max(0,notifications.filter(function(x){ return !x.is_read; }).length);
+      updateBellBadge();
+      renderNotifications();
+      db.from('notifications').update({is_read:true}).eq('id',notifId).then(function(){});
+    }
+    if(bedId) openBed(bedId);
+  }
+  async function sendNotification(recipientRole, message, bedId, patientName, type){
+    try {
+      var payload={
+        recipient_role:recipientRole,
+        message:message,
+        bed_id:bedId||null,
+        patient_name:patientName||null,
+        type:type||'info',
+        is_read:false,
+        created_at:new Date().toISOString()
+      };
+      var result=await db.from('notifications').insert(payload);
+      if(result.error){
+        console.error('sendNotification error:',result.error.message);
+      } else {
+        console.log('Notification sent:',recipientRole,message);
+      }
+    } catch(e){
+      console.error('sendNotification exception:',e);
+    }
+  }
+
+  // ── Mark Ongoing (toggle) ──
+  async function markOngoing(){
+    if(!rec||!rec.bed_id) return;
+    var newStatus=rec.diagnosis_status==='ongoing'?'pending':'ongoing';
+    busy(true);
+    var updates={diagnosis_status:newStatus,updated_by:me.id,updated_at:new Date().toISOString()};
+    var r=rec.id
+      ?await db.from('patient_records').update(updates).eq('id',rec.id).select('*').maybeSingle()
+      :await db.from('patient_records').update(updates).eq('bed_id',rec.bed_id).select('*').maybeSingle();
+    busy(false);
+    if(r.error){ toast('Update failed: '+r.error.message,'err'); return; }
+    rec=r.data||Object.assign({},rec,updates);
+    renderDetail(); loadBeds();
+    if(newStatus==='ongoing'){
+      toast('Marked Ongoing','ok');
+      sendNotification('midlevel','⚠️ Bed '+rec.bed_id+' '+rec.name+' — diagnosis ongoing, review needed',rec.bed_id,rec.name,'ongoing');
+    } else {
+      toast('Ongoing status removed','ok');
+      db.from('notifications').delete().eq('bed_id',rec.bed_id).eq('type','ongoing').then(function(){});
+    }
+  }
+
+  // ── Save Particulars Only ──
+  async function saveParticularsOnly(){
+    var nm=document.getElementById('ap-name').value.trim();
+    if(!nm){ toast('Patient name is required','err'); return; }
+    if(!apBedId){ toast('Select a bed','err'); return; }
+    var ag=document.getElementById('ap-age').value;
+    var payload={
+      bed_id:apBedId, name:nm,
+      age:ag!==''?parseInt(ag,10):null,
+      sex:apSex||null,
+      address:document.getElementById('ap-addr').value.trim()||null,
+      registration_no:document.getElementById('ap-reg').value.trim()||null,
+      is_critical:false,
+      updated_by:me.id, updated_at:new Date().toISOString()
+    };
+    busy(true);
+    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    busy(false);
+    if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
+    await sendNotification('intern','🩺 New patient '+nm+' added to Bed '+apBedId+' — please add clinical details',apBedId,nm,'info');
+    closeAddPatient();
+    toast('Patient saved. Intern notified ✓','ok');
+    loadBeds();
+  }
+
+  // ── Sidebar ──
+  function toggleSidebar(){
+    var sb=document.getElementById('sidebar');
+    var bd=document.getElementById('sidebar-backdrop');
+    if(sb.classList.contains('open')){ closeSidebar(); }
+    else { sb.classList.add('open'); if(bd) bd.classList.add('on'); }
+  }
+  function closeSidebar(){
+    var sb=document.getElementById('sidebar');
+    var bd=document.getElementById('sidebar-backdrop');
+    if(sb) sb.classList.remove('open');
+    if(bd) bd.classList.remove('on');
+  }
+  function updateSidebarActive(){
+    var map={'pg-beds':'sb-dashboard','pg-all-patients':'sb-all','pg-search':'sb-search','pg-notifications':'sb-notif','pg-export':'sb-export'};
+    document.querySelectorAll('.sb-item').forEach(function(el){ el.classList.remove('active'); });
+    var id=map[currentAppPage];
+    if(id){ var el=document.getElementById(id); if(el) el.classList.add('active'); }
+  }
+  function navTo(pageId){
+    currentAppPage=pageId;
+    if(window.innerWidth<769) closeSidebar();
+    updateSidebarActive();
+    if(pageId==='pg-all-patients'){ showPage(pageId); renderAllPatients(); return; }
+    if(pageId==='pg-search'){
+      showPage(pageId);
+      setTimeout(function(){ var inp=document.getElementById('srch-input'); if(inp) inp.focus(); },100);
+      return;
+    }
+    if(pageId==='pg-notifications'){
+      showPage(pageId);
+      if(unreadCount>0){
+        db.from('notifications').update({is_read:true}).eq('recipient_role',me.role).eq('is_read',false).then(function(){});
+        notifications.forEach(function(n){ n.is_read=true; });
+        unreadCount=0;
+        updateBellBadge();
+      }
+      renderNotifications();
+      return;
+    }
+    if(pageId==='pg-beds'){ sessionStorage.removeItem('currentBed'); sessionStorage.removeItem('cameFromBed'); }
+    if(pageId==='pg-export'){ showPage(pageId); return; }
+    showPage(pageId);
+  }
+
+  // ── All Patients ──
+  function renderAllPatients(){
+    var list=document.getElementById('apt-list'); if(!list) return;
+    var map={};
+    recs.forEach(function(r){ if(r.bed_id) map[r.bed_id]=r; });
+    var aptGroups=[
+      {label:'👨 Male Ward',sub:'Beds 1–32',range:[1,32]},
+      {label:'👩 Female Ward',sub:'Beds 33–60',range:[33,60]},
+      {label:'➕ Extra Beds',sub:'E1–E5',range:[61,65]}
+    ];
+    var html='';
+    aptGroups.forEach(function(g){
+      html+='<div class="ward-sec"><div class="ward-sec-hdr"><span>'+g.label+'</span><span class="ward-badge">'+g.sub+'</span></div><div class="apt-card-grid">';
+      for(var i=g.range[0];i<=g.range[1];i++){
+        var r=map[i], on=r&&isOcc(r), isCrit=r&&r.is_critical, isOng=r&&r.diagnosis_status==='ongoing';
+        var bedLbl=i>=61?'E'+(i-60):'BED '+i;
+        var cls=isCrit?'crit':on?'occ':'emp';
+        html+='<div class="apt-card '+cls+'" onclick="openBed('+i+')">';
+        html+='<div class="apt-card-bed">'+bedLbl+'</div>';
+        if(on){
+          html+='<div class="apt-card-name'+(isCrit?' crit':'')+'">'+esc(r.name)+'</div>';
+          if(r.age||r.sex){
+            var ageSex=(r.age?r.age+' yrs':'')+(r.age&&r.sex?' · ':'')+(r.sex?r.sex.charAt(0).toUpperCase()+r.sex.slice(1):'');
+            html+='<div class="apt-card-addr">'+esc(ageSex)+'</div>';
+          }
+          if(r.address) html+='<div class="apt-card-addr">'+esc(r.address.substr(0,30))+'</div>';
+          if(r.provisional_dx) html+='<div class="apt-card-dx">'+esc(r.provisional_dx.substr(0,40))+'</div>';
+          if(isCrit||isOng){
+            html+='<div class="apt-card-badges">';
+            if(isCrit) html+='<span class="apt-card-crit-badge">🔴 CRITICAL</span>';
+            if(isOng) html+='<span class="apt-card-ongoing-badge">⚠️ ONGOING</span>';
+            html+='</div>';
+          }
+        } else {
+          html+='<div class="apt-card-empty">Empty</div>';
+        }
+        html+='</div>';
+      }
+      html+='</div></div>';
+    });
+    list.innerHTML=html;
+  }
+
+  // ── Search ──
+  var searchQuery='';
+  function onSearch(){
+    var inp=document.getElementById('srch-input');
+    searchQuery=inp?inp.value.trim().toLowerCase():'';
+    var cl=document.getElementById('srch-clear');
+    if(cl) cl.classList.toggle('on',searchQuery.length>0);
+    renderSearch();
+  }
+  function clearSearch(){
+    var inp=document.getElementById('srch-input');
+    if(inp){ inp.value=''; inp.focus(); }
+    searchQuery='';
+    var cl=document.getElementById('srch-clear'); if(cl) cl.classList.remove('on');
+    renderSearch();
+  }
+  function renderSearch(){
+    var grid=document.getElementById('srch-results');
+    var hint=document.getElementById('srch-hint');
+    var none=document.getElementById('srch-none');
+    if(!grid) return;
+    if(!searchQuery){
+      grid.innerHTML='';
+      if(hint) hint.style.display='';
+      if(none) none.style.display='none';
+      return;
+    }
+    if(hint) hint.style.display='none';
+    var q=searchQuery;
+    var matched={};
+    // Bed number match — all 65 beds
+    for(var i=1;i<=65;i++){
+      var bl=i>=61?'e'+(i-60):String(i);
+      if(bl===q||('bed '+bl).includes(q)||('bed '+i).includes(q)){
+        matched[i]=recs.find(function(r){ return r.bed_id===i; })||{bed_id:i};
+      }
+    }
+    // Field match — occupied only
+    recs.filter(isOcc).forEach(function(r){
+      if((r.name&&r.name.toLowerCase().includes(q))
+        ||(r.provisional_dx&&r.provisional_dx.toLowerCase().includes(q))
+        ||(r.address&&r.address.toLowerCase().includes(q))
+        ||(r.registration_no&&String(r.registration_no).toLowerCase().includes(q))){
+        matched[r.bed_id]=r;
+      }
+    });
+    var results=Object.values(matched).sort(function(a,b){ return a.bed_id-b.bed_id; });
+    if(!results.length){
+      grid.innerHTML='';
+      if(none) none.style.display='';
+      return;
+    }
+    if(none) none.style.display='none';
+    grid.innerHTML=results.map(function(r){
+      var isCrit=r.is_critical, on=isOcc(r);
+      var cls=isCrit?'crit':on?'occ':'emp';
+      var bedLbl=r.bed_id>=61?'E'+(r.bed_id-60):String(r.bed_id);
+      return '<div class="bcard '+cls+'" onclick="openBed('+r.bed_id+')">'
+        +'<div class="bc-n">'+(r.bed_id>=61?'EXTRA ':'BED ')+bedLbl+'</div>'
+        +'<div class="bc-i"'+(on?'':' style="opacity:.28"')+'>🛏️</div>'
+        +(isCrit?'<div class="crit-badge">🔴 CRITICAL</div>':'')
+        +(on?'<div class="bc-p'+(isCrit?' crit':'')+'">'+esc(r.name||'')+'</div>':'')
+        +(on&&r.age!=null?'<div class="bc-reg">'+r.age+' yrs</div>':'')
+        +(!on?'<div class="bc-e">Empty</div>':'')
+        +'</div>';
+    }).join('');
+  }
+
+  // ── Critical Modal ──
+  function openCriticalModal(){
+    var critBeds=recs.filter(function(r){ return r.is_critical; });
+    var sub=document.getElementById('crit-modal-sub');
+    var grid=document.getElementById('crit-modal-grid');
+    var empty=document.getElementById('crit-modal-empty');
+    if(sub) sub.textContent=critBeds.length+' critical patient'+(critBeds.length===1?'':'s');
+    if(critBeds.length){
+      if(empty) empty.style.display='none';
+      if(grid) grid.innerHTML=critBeds.map(function(r){
+        var dx=r.provisional_dx?trunc(r.provisional_dx,22):'';
+        return '<div class="cth-card crit" onclick="closeCritModal();openBed('+r.bed_id+')">'
+          +'<div class="bc-n">BED '+r.bed_id+'</div>'
+          +'<div class="bc-i">🛏️</div>'
+          +'<div class="bc-p crit">'+esc(r.name||'Unknown')+'</div>'
+          +(r.age!=null?'<div class="bc-reg">'+r.age+' yrs</div>':'')
+          +(dx?'<div class="bc-reg" style="font-size:10px;color:#9CA3AF">'+esc(dx)+'</div>':'')
+          +'</div>';
+      }).join('');
+    } else {
+      if(grid) grid.innerHTML='';
+      if(empty) empty.style.display='';
+    }
+    document.getElementById('modal-crit-list').classList.add('on');
+  }
+  function closeCritModal(){ document.getElementById('modal-crit-list').classList.remove('on'); }
+
+  // ── Stats Thumbnail Modal ──
+  function openStatsModal(filter, title){
+    var beds;
+    if(filter==='all'){
+      beds=recs.filter(isOcc);
+    } else if(filter==='male'){
+      beds=recs.filter(function(r){ return isOcc(r)&&r.sex==='male'; });
+    } else if(filter==='female'){
+      beds=recs.filter(function(r){ return isOcc(r)&&r.sex==='female'; });
+    } else if(filter==='ongoing'){
+      beds=recs.filter(function(r){ return isOcc(r)&&r.diagnosis_status==='ongoing'; });
+    } else {
+      beds=recs.filter(function(r){ return r.is_critical; });
+    }
+    var titleEl=document.getElementById('stats-modal-title');
+    var subEl=document.getElementById('stats-modal-sub');
+    var grid=document.getElementById('stats-modal-grid');
+    var empty=document.getElementById('stats-modal-empty');
+    if(titleEl) titleEl.textContent=title||'Patients';
+    if(subEl) subEl.textContent=beds.length+' patient'+(beds.length===1?'':'s');
+    if(beds.length){
+      if(empty) empty.style.display='none';
+      if(grid) grid.innerHTML=beds.map(function(r){
+        var isCrit=r.is_critical;
+        var dx=r.provisional_dx?trunc(r.provisional_dx,22):'';
+        return '<div class="cth-card '+(isCrit?'crit':'occ')+'" onclick="closeStatsModal();openBed('+r.bed_id+')">'
+          +'<div class="bc-n">BED '+r.bed_id+'</div>'
+          +'<div class="bc-i">🛏️</div>'
+          +'<div class="bc-p'+(isCrit?' crit':'')+'">'+esc(r.name||'Unknown')+'</div>'
+          +(r.age!=null?'<div class="bc-reg">'+r.age+' yrs</div>':'')
+          +(dx?'<div class="bc-reg" style="font-size:10px;color:#9CA3AF">'+esc(dx)+'</div>':'')
+          +(isCrit?'<div class="crit-badge" style="font-size:9px;padding:1px 4px">🔴</div>':'')
+          +'</div>';
+      }).join('');
+    } else {
+      if(grid) grid.innerHTML='';
+      if(empty) empty.style.display='';
+    }
+    document.getElementById('modal-stats').classList.add('on');
+  }
+  function closeStatsModal(){ document.getElementById('modal-stats').classList.remove('on'); }
+
+  // ── Today Discharge Stats ──
+  async function loadTodayStats(){
+    if(!me) return;
+    var sevenDaysAgo=new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7); sevenDaysAgo.setHours(0,0,0,0);
+    var r=await db.from('discharge_records')
+      .select('bed_id,name,age,sex,provisional_dx,discharge_type,discharged_at,refer_to,transfer_to,discharged_by_name')
+      .gte('discharged_at',sevenDaysAgo.toISOString())
+      .order('discharged_at',{ascending:false});
+    if(r.error){ console.error('loadTodayStats:',r.error.message); return; }
+    todayDischarges=r.data||[];
+    renderTodayStats();
+  }
+  function renderTodayStats(){
+    var el;
+    el=document.getElementById('s-advice'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='advice'; }).length;
+    el=document.getElementById('s-request'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='request'; }).length;
+    el=document.getElementById('s-dorb'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='dorb'; }).length;
+    el=document.getElementById('s-referred'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='refer'; }).length;
+    el=document.getElementById('s-transferred'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='transfer'; }).length;
+    el=document.getElementById('s-absent'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='absent'; }).length;
+    el=document.getElementById('s-deceased'); if(el) el.textContent=todayDischarges.filter(function(d){ return d.discharge_type==='deceased'; }).length;
+  }
+  function openDischStatModal(filter, title){
+    var records=filter==='all-today'?todayDischarges:todayDischarges.filter(function(d){ return d.discharge_type===filter; });
+    var titleEl=document.getElementById('stats-modal-title');
+    var subEl=document.getElementById('stats-modal-sub');
+    var grid=document.getElementById('stats-modal-grid');
+    var empty=document.getElementById('stats-modal-empty');
+    if(titleEl) titleEl.textContent=title||'Discharged';
+    var now=new Date(); var weekAgo=new Date(now-7*24*60*60*1000);
+    var dateRange=weekAgo.toLocaleDateString()+' — '+now.toLocaleDateString();
+    if(subEl) subEl.textContent=records.length+' record'+(records.length===1?'':'s')+' · '+dateRange;
+    var typeIcon={advice:'✅',request:'📋',dorb:'📝',deceased:'✝️',absent:'🚫',refer:'🏥',transfer:'🔄'};
+    if(records.length){
+      if(empty) empty.style.display='none';
+      if(grid) grid.innerHTML=records.map(function(d){
+        var bedLbl=d.bed_id?(d.bed_id>=61?'E'+(d.bed_id-60):'Bed '+d.bed_id):'—';
+        var time=d.discharged_at?new Date(d.discharged_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+        var icon=typeIcon[d.discharge_type]||'📋';
+        var extra=(d.discharge_type==='refer'&&d.refer_to)?d.refer_to:(d.discharge_type==='transfer'&&d.transfer_to)?d.transfer_to:'';
+        var ptName=d.name?esc(d.name):'<span style="color:#9CA3AF;font-style:italic">No name</span>';
+        var ptAge=d.age!=null?d.age+' yrs':'<span style="color:#9CA3AF;font-style:italic">No age</span>';
+        var ptSex=d.sex?' · '+d.sex:'';
+        var ptDx=d.provisional_dx?esc(d.provisional_dx.substring(0,35)):'<span style="color:#9CA3AF;font-style:italic">No diagnosis</span>';
+        return '<div class="cth-card occ" style="cursor:default">'
+          +'<div class="bc-n">'+esc(bedLbl)+'</div>'
+          +'<div class="bc-i">'+icon+'</div>'
+          +'<div class="bc-p">'+ptName+'</div>'
+          +'<div class="bc-reg">'+ptAge+ptSex+'</div>'
+          +'<div class="bc-reg" style="font-style:italic">'+ptDx+'</div>'
+          +(extra?'<div class="bc-reg" style="font-size:10px;color:#3B82F6">'+esc(extra)+'</div>':'')
+          +(time?'<div class="bc-reg" style="color:#6B7280">🕐 '+time+'</div>':'')
+          +(d.discharged_by_name?'<div class="bc-reg" style="color:#6B7280;font-size:10px">By: '+esc(d.discharged_by_name)+'</div>':'')
+          +'</div>';
+      }).join('');
+    } else {
+      if(grid) grid.innerHTML='';
+      if(empty) empty.style.display='';
+    }
+    document.getElementById('modal-stats').classList.add('on');
+  }
+
+  // ── Enter key ──
+  document.getElementById('inp-email').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('inp-pw').focus(); });
+  document.getElementById('inp-pw').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+
+  // ── Export ──
+  var exportData = [];
+
+  async function runExport(){
+    var fromDate=document.getElementById('exp-date-from').value;
+    var toDate=document.getElementById('exp-date-to').value;
+    var type=document.getElementById('exp-type').value;
+    var name=document.getElementById('exp-name').value.trim().toLowerCase();
+    var bed=document.getElementById('exp-bed').value;
+    var dx=document.getElementById('exp-dx').value.trim().toLowerCase();
+    var query=db.from('discharge_records')
+      .select('bed_id,name,age,sex,provisional_dx,discharge_type,refer_to,transfer_to,discharge_advice,discharged_at,discharged_by_name')
+      .order('discharged_at',{ascending:false});
+    if(fromDate){ var fd=new Date(fromDate); if(!isNaN(fd)) query=query.gte('discharged_at',fd.toISOString().split('T')[0]+'T00:00:00.000Z'); }
+    if(toDate){ var td=new Date(toDate); if(!isNaN(td)) query=query.lte('discharged_at',td.toISOString().split('T')[0]+'T23:59:59.999Z'); }
+    if(type) query=query.eq('discharge_type',type);
+    if(bed) query=query.eq('bed_id',parseInt(bed));
+    var r=await query;
+    console.log('Export query result:', r.data, r.error);
+    if(r.error){ toast('Export failed: '+r.error.message,'err'); return; }
+    var data=r.data||[];
+    if(name) data=data.filter(function(d){ return d.name&&d.name.toLowerCase().includes(name); });
+    if(dx) data=data.filter(function(d){ return d.provisional_dx&&d.provisional_dx.toLowerCase().includes(dx); });
+    exportData=data;
+    var resultsDiv=document.getElementById('exp-results');
+    var emptyDiv=document.getElementById('exp-empty');
+    var countDiv=document.getElementById('exp-result-count');
+    var tbody=document.getElementById('exp-tbody');
+    if(data.length===0){ resultsDiv.style.display='none'; emptyDiv.style.display='block'; return; }
+    emptyDiv.style.display='none'; resultsDiv.style.display='block';
+    countDiv.textContent=data.length+' record'+(data.length===1?'':'s')+' found';
+    var tl={advice:'With Advice',request:'On Request',dorb:'DORB',refer:'Referred',transfer:'Transferred',absent:'Absconded',deceased:'Deceased'};
+    tbody.innerHTML=data.map(function(d){
+      var bedLbl=d.bed_id>=61?'E'+(d.bed_id-60):'Bed '+d.bed_id;
+      var dt=d.discharged_at?new Date(d.discharged_at).toLocaleDateString():'—';
+      var extra=(d.discharge_type==='refer'&&d.refer_to)?d.refer_to:(d.discharge_type==='transfer'&&d.transfer_to)?d.transfer_to:'—';
+      return '<tr style="border-bottom:1px solid #F3F4F6">'
+        +'<td style="padding:8px">'+esc(bedLbl)+'</td>'
+        +'<td style="padding:8px; font-weight:600">'+esc(d.name||'—')+'</td>'
+        +'<td style="padding:8px">'+esc((d.age||'?')+' / '+(d.sex||'?'))+'</td>'
+        +'<td style="padding:8px; font-style:italic">'+esc((d.provisional_dx||'—').substring(0,30))+'</td>'
+        +'<td style="padding:8px">'+esc(tl[d.discharge_type]||d.discharge_type||'—')+'</td>'
+        +'<td style="padding:8px">'+esc(extra)+'</td>'
+        +'<td style="padding:8px">'+esc(dt)+'</td>'
+        +'<td style="padding:8px; font-size:12px; color:#6B7280">'+esc(d.discharged_by_name||'—')+'</td>'
+        +'</tr>';
+    }).join('');
+  }
+
+  function downloadCSV(){
+    if(!exportData.length){ toast('No data to download','err'); return; }
+    var tl={advice:'With Advice',request:'On Request',dorb:'DORB',refer:'Referred',transfer:'Transferred',absent:'Absconded',deceased:'Deceased'};
+    var headers=['Bed','Name','Age','Sex','Diagnosis','Discharge Type','Refer/Transfer To','Advice/Notes','Date','Discharged By'];
+    var rows=exportData.map(function(d){
+      var bedLbl=d.bed_id>=61?'Extra '+(d.bed_id-60):'Bed '+d.bed_id;
+      var extra=(d.discharge_type==='refer'&&d.refer_to)?d.refer_to:(d.discharge_type==='transfer'&&d.transfer_to)?d.transfer_to:'';
+      var dt=d.discharged_at?new Date(d.discharged_at).toLocaleString():'';
+      return [bedLbl,d.name||'',d.age||'',d.sex||'',d.provisional_dx||'',tl[d.discharge_type]||d.discharge_type||'',extra,d.discharge_advice||'',dt,d.discharged_by_name||'']
+        .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+    });
+    var csv=[headers.join(',')].concat(rows).join('\n');
+    var blob=new Blob([csv],{type:'text/csv'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url;
+    a.download='KuMCH_Discharge_Data_'+new Date().toISOString().split('T')[0]+'.csv';
+    a.click(); URL.revokeObjectURL(url);
+    toast('CSV downloaded ✓','ok');
+  }
+
+  function downloadTXT(){
+    if(!exportData.length){ toast('No data to download','err'); return; }
+    var tl={advice:'Discharge with Advice',request:'Discharge on Request',dorb:'DORB',refer:'Referred to Higher Center',transfer:'Transferred',absent:'Absconded',deceased:'Deceased'};
+    var lines=['KUSHTIA MEDICAL COLLEGE HOSPITAL','Department of Medicine — Unit 3','DISCHARGE DATA EXPORT','Generated: '+new Date().toLocaleString(),'='.repeat(50),''];
+    exportData.forEach(function(d,i){
+      var bedLbl=d.bed_id>=61?'Extra '+(d.bed_id-60):'Bed '+d.bed_id;
+      lines.push('Record '+(i+1)); lines.push('-'.repeat(30));
+      lines.push('Bed           : '+bedLbl);
+      lines.push('Name          : '+(d.name||'—'));
+      lines.push('Age / Sex     : '+(d.age||'?')+' yrs / '+(d.sex||'?'));
+      lines.push('Diagnosis     : '+(d.provisional_dx||'—'));
+      lines.push('Discharge Type: '+(tl[d.discharge_type]||d.discharge_type||'—'));
+      if(d.discharge_type==='refer'&&d.refer_to) lines.push('Referred To   : '+d.refer_to);
+      if(d.discharge_type==='transfer'&&d.transfer_to) lines.push('Transferred To: '+d.transfer_to);
+      lines.push('Advice/Notes  : '+(d.discharge_advice||'—'));
+      lines.push('Date          : '+(d.discharged_at?new Date(d.discharged_at).toLocaleString():'—'));
+      lines.push('Discharged By : '+(d.discharged_by_name||'—'));
+      lines.push('');
+    });
+    lines.push('='.repeat(50)); lines.push('Total Records : '+exportData.length);
+    var blob=new Blob([lines.join('\n')],{type:'text/plain'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url;
+    a.download='KuMCH_Discharge_Data_'+new Date().toISOString().split('T')[0]+'.txt';
+    a.click(); URL.revokeObjectURL(url);
+    toast('TXT downloaded ✓','ok');
+  }
+
+  function downloadPDF(){
+    if(!exportData.length){ toast('No data to download','err'); return; }
+    var tl={advice:'Discharge with Advice',request:'Discharge on Request',dorb:'DORB',refer:'Referred to Higher Center',transfer:'Transferred',absent:'Absconded',deceased:'Deceased'};
+    var printDiv=document.getElementById('print-area');
+    if(!printDiv) return;
+    var html='<div style="font-family:Times New Roman,serif; padding:30px; max-width:800px; margin:0 auto">';
+    html+='<div style="text-align:center; margin-bottom:20px; border-bottom:2px solid #000; padding-bottom:15px">';
+    html+='<div style="font-size:18px; font-weight:700">KUSHTIA MEDICAL COLLEGE HOSPITAL</div>';
+    html+='<div style="font-size:15px; font-weight:600">Department of Medicine, Unit 3</div>';
+    html+='<div style="font-size:13px; margin-top:4px">DISCHARGE DATA EXPORT</div>';
+    html+='<div style="font-size:12px; color:#666; margin-top:4px">Generated: '+new Date().toLocaleString()+'</div>';
+    html+='<div style="font-size:12px; color:#666">Total Records: '+exportData.length+'</div>';
+    html+='</div>';
+    html+='<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px">';
+    html+='<thead><tr style="background:#f0f0f0">';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Bed</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Name</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Age/Sex</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Diagnosis</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Type</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Refer/Transfer</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">Date</th>';
+    html+='<th style="border:1px solid #ccc; padding:6px; text-align:left">By</th>';
+    html+='</tr></thead><tbody>';
+    exportData.forEach(function(d){
+      var bedLbl=d.bed_id>=61?'E'+(d.bed_id-60):'Bed '+d.bed_id;
+      var extra=(d.discharge_type==='refer'&&d.refer_to)?d.refer_to:(d.discharge_type==='transfer'&&d.transfer_to)?d.transfer_to:'—';
+      var dt=d.discharged_at?new Date(d.discharged_at).toLocaleDateString():'—';
+      html+='<tr>';
+      html+='<td style="border:1px solid #ddd; padding:5px">'+bedLbl+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px; font-weight:600">'+(d.name||'—')+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px">'+(d.age||'?')+' / '+(d.sex||'?')+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px; font-style:italic">'+(d.provisional_dx||'—').substring(0,25)+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px">'+(tl[d.discharge_type]||d.discharge_type||'—')+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px">'+extra+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px">'+dt+'</td>';
+      html+='<td style="border:1px solid #ddd; padding:5px; font-size:11px">'+(d.discharged_by_name||'—')+'</td>';
+      html+='</tr>';
+    });
+    html+='</tbody></table>';
+    html+='<div style="text-align:right; font-size:11px; color:#666; margin-top:10px">KuMCH Medicine Unit 3 — Confidential Medical Record</div>';
+    html+='</div>';
+    printDiv.innerHTML=html;
+    printDiv.style.display='block';
+    setTimeout(function(){
+      var styleEl=document.createElement('style');
+      styleEl.id='print-suppress-style';
+      styleEl.innerHTML='@media print { @page { margin: 10mm; } }';
+      document.head.appendChild(styleEl);
+      window.print();
+      setTimeout(function(){
+        printDiv.style.display='none'; printDiv.innerHTML='';
+        var s=document.getElementById('print-suppress-style'); if(s) s.remove();
+      },1000);
+    },300);
+    toast('In print dialog: uncheck "Headers and footers" for clean output','ok');
+  }
+
+  // Boot
+  init();
+</script>
+</body>
+</html>
