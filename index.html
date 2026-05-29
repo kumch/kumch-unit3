@@ -1314,7 +1314,7 @@
   var todayDischarges   = [];
 
   // ── Offline detection ──
-  var isOnline = navigator.onLine;
+  var isOnline = true; // Assume online by default
   var offlineQueue = [];
   try {
     var savedQueue = localStorage.getItem('kmch-offline-queue');
@@ -1325,19 +1325,32 @@
     try { localStorage.setItem('kmch-offline-queue', JSON.stringify(offlineQueue)); } catch(e){}
   }
 
-  window.addEventListener('online', function(){
-    isOnline = true;
-    updateOnlineStatus();
-    toast('Back online! Syncing...', 'ok');
-    // If we were in offline mode with cached user, reload fresh data
-    if(me){
-      loadBeds();
-      loadTodayStats();
-      processSyncQueue();
-    } else {
-      // Was on login page offline - reload page to try login
-      window.location.reload();
+  async function checkOnlineStatus(){
+    try {
+      // Try to reach Supabase to confirm connectivity
+      var response = await fetch(
+        'https://gzgldhenfyoqctqnwgod.supabase.co/rest/v1/',
+        {
+          method: 'HEAD',
+          headers: {'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6Z2xkaGVuZnlvcWN0cW53Z29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NjcwNjUsImV4cCI6MjA5NTM0MzA2NX0.B3t5i7z5BzjOeW9VjmraPLr5CTT0e8iEhaJ_M9qqF-U'},
+          cache: 'no-store',
+          signal: AbortSignal.timeout(5000)
+        }
+      );
+      isOnline = true;
+    } catch(e){
+      isOnline = false;
     }
+    updateOnlineStatus();
+    return isOnline;
+  }
+
+  // Check every 30 seconds
+  setInterval(checkOnlineStatus, 30000);
+
+  // Keep navigator.onLine as backup
+  window.addEventListener('online', function(){
+    checkOnlineStatus();
   });
   window.addEventListener('offline', function(){
     isOnline = false;
@@ -1564,7 +1577,8 @@
     });
 
     // Check if offline first
-    if(!navigator.onLine){
+    var onlineCheck = await checkOnlineStatus();
+    if(!onlineCheck){
       // Try to restore from localStorage cache
       try {
         var cachedUser = localStorage.getItem('kmch-user-profile');
