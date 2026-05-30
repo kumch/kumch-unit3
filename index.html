@@ -416,6 +416,30 @@
       .hdr-l3 { font-size: 12px; }
       button { min-height: 48px; }
     }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+  }
+  .skeleton-bed {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    border: 1.5px solid #E5E7EB;
+    min-height: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .skeleton-line { height: 12px; border-radius: 4px; }
+  .skeleton-line.short { width: 40%; }
+  .skeleton-line.medium { width: 65%; }
+  .skeleton-line.long { width: 85%; }
   .msg-bubble { margin-bottom: 12px; max-width: 85%; }
   .msg-bubble.sent { margin-left: auto; text-align: right; }
   .msg-bubble.received { margin-right: auto; text-align: left; }
@@ -622,7 +646,7 @@
           <div class="stat-item" onclick="openCriticalModal()"><div class="stat-n red" id="s-crit">—</div><div class="stat-l" style="color:#EF4444">🔴 Critical</div></div>
           <div class="stat-item" onclick="openStatsModal('ongoing','Diagnosis Ongoing')"><div class="stat-n" style="color:#F59E0B" id="s-ongoing">—</div><div class="stat-l" style="color:#D97706">⚠️ Ongoing</div></div>
           <div class="stat-item" onclick="openSupervisorAttentionModal()">
-            <div class="stat-n" style="color:#F59E0B" id="s-sup-attn">0</div>
+            <div class="stat-n" style="color:#F59E0B" id="s-sup-attn">—</div>
             <div class="stat-l" style="color:#F59E0B">👁️ SUP ATTN</div>
           </div>
         </div>
@@ -1684,6 +1708,34 @@
     try { localStorage.setItem('kmch-offline-queue', JSON.stringify(offlineQueue)); } catch(e){}
   }
 
+  async function withRetry(fn, maxAttempts, label){
+    maxAttempts = maxAttempts || 3;
+    label = label || 'operation';
+    var lastError = null;
+    for(var attempt = 1; attempt <= maxAttempts; attempt++){
+      try {
+        var result = await fn();
+        if(result && result.error){
+          lastError = result.error;
+          console.warn(label+' attempt '+attempt+' failed:', result.error.message);
+          if(attempt < maxAttempts){
+            await new Promise(function(r){ setTimeout(r, attempt * 500); });
+          }
+          continue;
+        }
+        return result;
+      } catch(e){
+        lastError = e;
+        console.warn(label+' attempt '+attempt+' exception:', e.message);
+        if(attempt < maxAttempts){
+          await new Promise(function(r){ setTimeout(r, attempt * 500); });
+        }
+      }
+    }
+    console.error(label+' failed after '+maxAttempts+' attempts:', lastError);
+    return { error: lastError };
+  }
+
   async function checkOnlineStatus(){
     // Quick check first
     if(!navigator.onLine){ isOnline = false; updateOnlineStatus(); return false; }
@@ -1718,6 +1770,7 @@
         toast('Back online! Syncing data...','ok');
         // Wait a moment then sync
         setTimeout(async function(){
+          showBedSkeleton();
           await loadBeds();
           renderGrid();
           if(offlineQueue.length > 0){
@@ -2105,6 +2158,7 @@
       me = cached;
       setHdr('beds'); setHdr('apts'); setHdr('srch'); setHdr('det'); setHdr('noti'); setHdr('exp');
       document.body.classList.add('app-mode');
+      showBedSkeleton();
       await loadBeds();
       await loadTodayStats();
       await loadNotifications();
@@ -2129,6 +2183,7 @@
     try { localStorage.setItem('kmch-user-profile', JSON.stringify(me)); } catch(e){}
     setHdr('beds'); setHdr('apts'); setHdr('srch'); setHdr('det'); setHdr('noti');
     document.body.classList.add('app-mode');
+    showBedSkeleton();
     await loadBeds();
     await loadTodayStats();
     await loadNotifications();
@@ -2316,6 +2371,20 @@
     renderGrid();
     if(currentAppPage==='pg-all-patients') renderAllPatients();
     if(currentAppPage==='pg-search') renderSearch();
+  }
+
+  function showBedSkeleton(){
+    var grid = document.getElementById('bed-grid');
+    if(!grid) return;
+    var skeletonHtml = '';
+    for(var i=0; i<12; i++){
+      skeletonHtml += '<div class="skeleton-bed">'
+        +'<div class="skeleton skeleton-line short"></div>'
+        +'<div class="skeleton skeleton-line medium"></div>'
+        +'<div class="skeleton skeleton-line long"></div>'
+        +'</div>';
+    }
+    grid.innerHTML = skeletonHtml;
   }
 
   function renderGrid(){
@@ -2664,11 +2733,17 @@
       cancelEdit(n); renderDetail();
       return;
     }
-    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*,updater:updated_by(name,role)').maybeSingle();
-    if(r.error) r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    var r=await withRetry(function(){
+      return db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    }, 3, 'saveSection');
     busy(false);
     if(sb){ sb.disabled=false; sb.textContent='Save'; }
-    if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
+    if(r && r.error){
+      offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
+      saveQueue();
+      toast('Save failed — queued for retry when connection improves','err');
+      return;
+    }
     rec=r.data||Object.assign({},rec,updates);
     cancelEdit(n); renderDetail(); toast('Saved','ok'); loadBeds();
   }
@@ -2861,9 +2936,21 @@
       return;
     }
     busy(true);
-    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    var r=await withRetry(function(){
+      return db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    }, 3, 'saveNewPatient');
     busy(false);
-    if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
+    if(r && r.error){
+      offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
+      saveQueue();
+      var fullRecord = Object.assign({}, payload, {id:'offline-'+payload.bed_id, is_critical:false, diagnosis_status:'pending'});
+      var idx = recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
+      if(idx>=0) recs[idx]=fullRecord; else recs.push(fullRecord);
+      renderGrid();
+      closeAddPatient();
+      toast('Patient queued — will sync when connection improves','ok');
+      return;
+    }
     closeAddPatient(); toast('Patient added','ok'); loadBeds();
   }
 
@@ -3032,10 +3119,12 @@
       return;
     }
 
-    var dr=await db.from('discharge_records').insert(drPayload).select('id').maybeSingle();
+    var dr=await withRetry(function(){
+      return db.from('discharge_records').insert(drPayload).select('id').maybeSingle();
+    }, 3, 'discharge');
     busy(false);
     if(btn){ btn.disabled=false; btn.textContent='Confirm Discharge'; }
-    if(dr.error){ toast('Discharge save failed: '+dr.error.message,'err'); return; }
+    if(dr && dr.error){ toast('Discharge record failed to save — please try again','err'); return; }
 
     discLastInsertId=(dr.data&&dr.data.id)||null;
     closeDischarge();
@@ -3277,7 +3366,9 @@
         is_read:false,
         created_at:new Date().toISOString()
       };
-      var result=await db.from('notifications').insert(payload);
+      var result=await withRetry(function(){
+        return db.from('notifications').insert(payload);
+      }, 2, 'sendNotification');
       if(result.error){
         console.error('sendNotification error:',result.error.message);
       } else {
@@ -3572,6 +3663,21 @@
   // ── All Patients ──
   function renderAllPatients(){
     var list=document.getElementById('apt-list'); if(!list) return;
+    if(recs.length === 0){
+      var skHtml = '';
+      for(var i=0; i<6; i++){
+        skHtml += '<div class="skeleton-bed" style="margin-bottom:8px">'
+          +'<div style="display:flex;gap:10px">'
+          +'<div class="skeleton skeleton-line" style="width:50px;height:50px;border-radius:8px;flex-shrink:0"></div>'
+          +'<div style="flex:1;display:flex;flex-direction:column;gap:8px">'
+          +'<div class="skeleton skeleton-line medium"></div>'
+          +'<div class="skeleton skeleton-line short"></div>'
+          +'<div class="skeleton skeleton-line long"></div>'
+          +'</div></div></div>';
+      }
+      list.innerHTML = skHtml;
+      return;
+    }
     var map={};
     recs.forEach(function(r){ if(r.bed_id) map[r.bed_id]=r; });
     var aptGroups=[
