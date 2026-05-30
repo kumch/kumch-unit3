@@ -1848,12 +1848,35 @@
   async function openBed(num){
     sessionStorage.setItem('currentBed', num);
     sessionStorage.setItem('lastPage', 'pg-detail');
+    // If offline, load from cache
+    if(!isOnline){
+      try {
+        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        var cachedRec = cachedBeds[num];
+        if(cachedRec){
+          rec = cachedRec;
+          renderDetail();
+          showPage('pg-detail');
+          sessionStorage.setItem('currentBed', num);
+          sessionStorage.setItem('lastPage', 'pg-detail');
+          return;
+        }
+      } catch(e){ console.warn('Offline bed load error:', e); }
+      toast('No cached data for this bed', 'err');
+      return;
+    }
     busy(true);
     var r=await db.from('patient_records').select('*,updater:updated_by(name,role)').eq('bed_id',num).maybeSingle();
     if(r.error) r=await db.from('patient_records').select('*').eq('bed_id',num).maybeSingle();
     busy(false);
     if(r.error){ toast('Load failed: '+r.error.message,'err'); return; }
     rec=r.data||{bed_id:num};
+    // Cache full record for offline use
+    try {
+      var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+      cachedBeds[num] = rec;
+      localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
+    } catch(e){}
     collapsed={1:false,2:false,3:false,4:false};
     renderDetail();
     setHdr('det');
@@ -2062,6 +2085,16 @@
     if(!isOnline){
       offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
       saveQueue();
+      // Update local cache immediately
+      try {
+        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        cachedBeds[payload.bed_id] = Object.assign(cachedBeds[payload.bed_id]||{}, payload);
+        localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
+        // Update local rec too
+        rec = Object.assign(rec||{}, payload);
+        // Re-render detail if on detail page
+        if(currentAppPage === 'pg-detail') renderDetail();
+      } catch(e){}
       rec = Object.assign(rec||{}, payload);
       busy(false);
       if(sb){ sb.disabled=false; sb.textContent='Save'; }
@@ -2234,7 +2267,14 @@
       var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
       if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
       else recs.push(payload);
+      // Update cache
+      try {
+        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        cachedBeds[payload.bed_id] = payload;
+        localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
+      } catch(e){}
       renderGrid();
+      renderAllPatients();
       closeAddPatient();
       toast('Patient saved locally (offline) — will sync when online', 'ok');
       return;
