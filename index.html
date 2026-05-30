@@ -1802,26 +1802,26 @@
         loadBeds();
       })
       .subscribe();
-    rtNotifChannel = db.channel('notif-rt')
+    rtNotifChannel = db.channel('notif-rt-'+me.id)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications'
       }, function(payload){
         var n = payload.new;
-        // Check if this notification is for me
+        if(!n) return;
+        // Check if this notification is for current user
         if(n.recipient_role === me.role || n.recipient_role === 'all'){
           unreadCount++;
           updateBellBadge();
-          // Show toast for new notification
-          toast('🔔 ' + (n.message||'New notification'), 'ok');
-          // If on notifications page refresh it
-          if(currentAppPage === 'pg-notifications'){
-            loadNotifications().then(renderNotifications);
-          }
+          toast('🔔 ' + (n.message ? n.message.substring(0,60) : 'New notification'), 'ok');
+          notifications.unshift(n);
+          if(currentAppPage === 'pg-notifications') renderNotifications();
         }
       })
-      .subscribe();
+      .subscribe(function(status){
+        console.log('Notif channel status:', status);
+      });
   }
   function stopRealtime(){
     if(rtChannel){ db.removeChannel(rtChannel); rtChannel=null; }
@@ -1908,8 +1908,11 @@
     if(!isOnline){
       try {
         var cache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
-        if(cache[num]){
-          rec = cache[num];
+        // Also check recs array
+        var recsRec = recs.find(function(r){ return r.bed_id===num; });
+        var cachedRec = cache[num] || recsRec;
+        if(cachedRec){
+          rec = cachedRec;
           curBed = num;
           renderDetail();
           showPage('pg-detail');
@@ -2330,6 +2333,21 @@
       var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
       if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
       else recs.push(payload);
+      try {
+        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        // Store full payload as the cached record
+        var fullRecord = Object.assign({}, payload, {
+          id: 'offline-'+payload.bed_id,
+          is_critical: false,
+          diagnosis_status: 'pending'
+        });
+        cachedBeds[payload.bed_id] = fullRecord;
+        localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
+        // Also update recs array with full record
+        var idx = recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
+        if(idx>=0) recs[idx] = fullRecord;
+        else recs.push(fullRecord);
+      } catch(e){ console.error('Cache error:', e); }
       // Force re-render with updated recs
       renderGrid();
       if(typeof renderAllPatients === 'function') renderAllPatients();
@@ -3044,6 +3062,22 @@
   // ── Today Discharge Stats ──
   async function loadTodayStats(){
     if(!me) return;
+
+    // If offline, show cached stats or zeros
+    if(!isOnline){
+      try {
+        var cachedStats = JSON.parse(localStorage.getItem('kmch-stats-cache')||'null');
+        if(cachedStats){
+          var ids = ['s-advice','s-request','s-dorb','s-referred','s-transferred','s-absent','s-deceased'];
+          ids.forEach(function(id){
+            var el = document.getElementById(id);
+            if(el) el.textContent = cachedStats[id] || '0';
+          });
+        }
+      } catch(e){}
+      return;
+    }
+
     var sevenDaysAgo=new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7); sevenDaysAgo.setHours(0,0,0,0);
     var r=await db.from('discharge_records')
       .select('bed_id,name,age,sex,provisional_dx,discharge_type,discharged_at,refer_to,transfer_to,discharged_by_name')
@@ -3052,6 +3086,15 @@
     if(r.error){ console.error('loadTodayStats:',r.error.message); return; }
     todayDischarges=r.data||[];
     renderTodayStats();
+    // Cache stats for offline
+    try {
+      var statsCache = {};
+      ['s-advice','s-request','s-dorb','s-referred','s-transferred','s-absent','s-deceased'].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) statsCache[id] = el.textContent;
+      });
+      localStorage.setItem('kmch-stats-cache', JSON.stringify(statsCache));
+    } catch(e){}
   }
   function renderTodayStats(){
     var el;
