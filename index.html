@@ -1475,7 +1475,7 @@
   function toast(msg, type) {
     var el = document.getElementById('toast');
     el.textContent = msg; el.className = 'on' + (type ? ' '+type : '');
-    clearTimeout(_tt); _tt = setTimeout(function(){ el.className=''; }, 3200);
+    clearTimeout(_tt); _tt = setTimeout(function(){ el.className=''; }, 2000);
   }
   function showPage(id) {
     if(id !== 'pg-login' && id !== 'pg-detail'){ sessionStorage.setItem('lastPage', id); }
@@ -1822,7 +1822,11 @@
         if(n.recipient_role === me.role || n.recipient_role === 'all'){
           unreadCount++;
           updateBellBadge();
-          toast('🔔 ' + (n.message ? n.message.substring(0,60) : 'New notification'), 'ok');
+          var notifTime = new Date(n.created_at).getTime();
+          var now = Date.now();
+          if(now - notifTime < 10000){
+            toast('🔔 ' + (n.message ? n.message.substring(0,60) : 'New notification'), 'ok');
+          }
           notifications.unshift(n);
           if(currentAppPage === 'pg-notifications') renderNotifications();
         }
