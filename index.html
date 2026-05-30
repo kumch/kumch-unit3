@@ -1357,12 +1357,16 @@
     checkOnlineStatus().then(function(online){
       if(online && me){
         toast('Back online! Syncing data...','ok');
-        loadBeds().then(function(){
+        // Wait a moment then sync
+        setTimeout(async function(){
+          await loadBeds();
           renderGrid();
+          if(offlineQueue.length > 0){
+            await processSyncQueue();
+          }
+          await loadTodayStats();
           if(currentAppPage==='pg-all-patients') renderAllPatients();
-          if(offlineQueue.length > 0) processSyncQueue();
-        });
-        loadTodayStats();
+        }, 1000);
       } else if(online && !me){
         window.location.reload();
       }
@@ -1387,8 +1391,14 @@
       var item = offlineQueue[i];
       try {
         if(item.type === 'upsert'){
-          var r = await db.from('patient_records').upsert(item.payload, {onConflict:'bed_id'}).select('*').maybeSingle();
-          if(r.error) failed.push(item);
+          var r = await db.from('patient_records')
+            .upsert(item.payload, {onConflict:'bed_id'});
+          if(r.error){
+            console.error('Sync upsert error:', r.error.message);
+            failed.push(item);
+          } else {
+            console.log('Synced bed:', item.payload.bed_id);
+          }
         } else if(item.type === 'update'){
           var r = await db.from('patient_records').update(item.payload).eq('bed_id', item.bed_id);
           if(r.error) failed.push(item);
@@ -1426,8 +1436,15 @@
       }
     } catch(pe){ console.warn('Offline photo sync error:', pe); }
 
-    if(failed.length === 0){ toast('All changes synced ✓', 'ok'); await loadBeds(); }
-    else { toast(failed.length + ' changes failed to sync', 'err'); }
+  if(failed.length === 0){
+    toast('All changes synced ✓', 'ok');
+    await loadBeds();
+    await loadTodayStats();
+    renderGrid();
+    if(currentAppPage==='pg-all-patients') renderAllPatients();
+  } else {
+    toast(failed.length + ' changes failed to sync - will retry','err');
+  }
   }
 
   // ── Helpers ──
@@ -2285,19 +2302,18 @@
       var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
       if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
       else recs.push(payload);
+      // Force re-render with updated recs
       renderGrid();
-      // Update stats
+      if(typeof renderAllPatients === 'function') renderAllPatients();
+      // Update stats manually
       var occEl=document.getElementById('s-occ');
+      var maleEl=document.getElementById('s-male');
+      var femaleEl=document.getElementById('s-female');
       if(occEl) occEl.textContent=recs.filter(isOcc).length;
-      // Cache the new patient
-      try {
-        var bedCache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
-        bedCache[payload.bed_id] = payload;
-        localStorage.setItem('kmch-beds-cache', JSON.stringify(bedCache));
-      } catch(e){}
-      renderAllPatients();
+      if(maleEl) maleEl.textContent=recs.filter(function(r){ return isOcc(r)&&r.bed_id<=32; }).length;
+      if(femaleEl) femaleEl.textContent=recs.filter(function(r){ return isOcc(r)&&r.bed_id>=33&&r.bed_id<=60; }).length;
       closeAddPatient();
-      toast('Patient saved locally (offline) — will sync when online', 'ok');
+      toast('Patient saved locally — will sync when online ✓','ok');
       return;
     }
     busy(true);
