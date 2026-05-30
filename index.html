@@ -1106,6 +1106,54 @@
   </div>
 </div>
 
+<!-- Edit User Modal -->
+<div id="modal-edit-user" class="modal-bg" style="display:none">
+  <div class="modal-card" style="max-width:360px">
+    <div class="modal-title">✏️ Edit User</div>
+    <div id="adm-edit-user-sub" style="color:#6B7280;font-size:13px;margin-bottom:14px"></div>
+
+    <div style="margin-bottom:10px">
+      <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:4px">FULL NAME</label>
+      <input id="adm-edit-name" type="text" placeholder="Full name"
+        style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box">
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:8px">ROLE</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="admSetEditRole('nurse')" id="adm-edit-role-nurse" style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">🩺 Nurse</button>
+        <button onclick="admSetEditRole('intern')" id="adm-edit-role-intern" style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">👨‍⚕️ Intern</button>
+        <button onclick="admSetEditRole('midlevel')" id="adm-edit-role-midlevel" style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">👩‍⚕️ Midlevel</button>
+      </div>
+    </div>
+
+    <button onclick="admUpdateProfile()" style="width:100%;padding:14px;background:#3B82F6;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;min-height:52px">
+      ✅ Save Changes
+    </button>
+    <button onclick="closeModal('modal-edit-user')" style="width:100%;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;cursor:pointer">
+      Cancel
+    </button>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div id="modal-delete-user" class="modal-bg" style="display:none">
+  <div class="modal-card" style="max-width:360px; text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+    <div class="modal-title">Remove User?</div>
+    <div id="adm-delete-username" style="color:#6B7280;font-size:14px;margin:8px 0 20px"></div>
+    <div style="background:#FEF2F2;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#EF4444">
+      This will permanently delete the user account. They will not be able to login anymore.
+    </div>
+    <button onclick="admDeleteUser()" style="width:100%;padding:14px;background:#EF4444;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;min-height:52px">
+      🗑️ Yes Remove User
+    </button>
+    <button onclick="closeModal('modal-delete-user')" style="width:100%;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;cursor:pointer">
+      Cancel
+    </button>
+  </div>
+</div>
+
 <!-- ════════ ADD PATIENT MODAL ════════ -->
 <div class="modal-bg" id="ap-modal">
   <div class="modal-card">
@@ -3711,7 +3759,11 @@
         +'<div style="font-size:12px;color:#6B7280">'+esc(u.email)+'</div>'
         +'<span style="background:'+color+';color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">'+roleLabels[u.role]+'</span>'
         +'</div>'
+        +'<div style="display:flex;flex-direction:column;gap:6px">'
         +'<button onclick="admShowChangePass(\''+u.id+'\',\''+esc(u.name)+'\')" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔑 Password</button>'
+        +'<button onclick="admShowEditName(\''+u.id+'\',\''+esc(u.name)+'\',\''+u.role+'\')" style="padding:8px 12px;background:#EFF6FF;color:#3B82F6;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✏️ Edit</button>'
+        +'<button onclick="admConfirmDelete(\''+u.id+'\',\''+esc(u.name)+'\')" style="padding:8px 12px;background:#FEE2E2;color:#EF4444;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🗑️ Remove</button>'
+        +'</div>'
         +'</div>';
     }).join('') || '<div style="text-align:center;color:#9CA3AF;padding:20px">No users found</div>';
   }
@@ -3733,6 +3785,74 @@
     if(result.error){ toast('Error: '+result.error,'err'); return; }
     toast('Password updated ✓','ok');
     closeModal('modal-change-pass');
+  }
+
+  var admEditingRole = '';
+  var admDeletingUserId = '';
+  var admDeletingUserName = '';
+
+  function admSetEditRole(role){
+    admEditingRole = role;
+    ['nurse','intern','midlevel'].forEach(function(r){
+      var btn = document.getElementById('adm-edit-role-'+r);
+      if(!btn) return;
+      if(r === role){
+        btn.style.background = '#3B82F6';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#3B82F6';
+      } else {
+        btn.style.background = 'white';
+        btn.style.color = '#374151';
+        btn.style.borderColor = '#E5E7EB';
+      }
+    });
+  }
+
+  function admShowEditName(userId, userName, userRole){
+    admEditingUserId = userId;
+    admEditingRole = userRole;
+    var sub = document.getElementById('adm-edit-user-sub');
+    if(sub) sub.textContent = 'Editing: ' + userName;
+    var nameInput = document.getElementById('adm-edit-name');
+    if(nameInput) nameInput.value = userName;
+    admSetEditRole(userRole);
+    document.getElementById('modal-edit-user').style.display = 'flex';
+  }
+
+  async function admUpdateProfile(){
+    var name = document.getElementById('adm-edit-name').value.trim();
+    if(!name){ toast('Name cannot be empty','err'); return; }
+    if(!admEditingRole){ toast('Select a role','err'); return; }
+    busy(true);
+    var result = await admCallFunction('update_profile', {
+      userId: admEditingUserId,
+      name: name,
+      role: admEditingRole
+    });
+    busy(false);
+    if(result.error){ toast('Error: '+result.error,'err'); return; }
+    toast('User updated successfully ✓','ok');
+    closeModal('modal-edit-user');
+    admLoadUsers();
+  }
+
+  function admConfirmDelete(userId, userName){
+    admDeletingUserId = userId;
+    admDeletingUserName = userName;
+    var el = document.getElementById('adm-delete-username');
+    if(el) el.textContent = userName;
+    document.getElementById('modal-delete-user').style.display = 'flex';
+  }
+
+  async function admDeleteUser(){
+    if(!admDeletingUserId){ toast('No user selected','err'); return; }
+    busy(true);
+    var result = await admCallFunction('delete', { userId: admDeletingUserId });
+    busy(false);
+    if(result.error){ toast('Error: '+result.error,'err'); return; }
+    toast('User removed successfully ✓','ok');
+    closeModal('modal-delete-user');
+    admLoadUsers();
   }
 
 </script>
