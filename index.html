@@ -416,6 +416,20 @@
       .hdr-l3 { font-size: 12px; }
       button { min-height: 48px; }
     }
+  .msg-bubble { margin-bottom: 12px; max-width: 85%; }
+  .msg-bubble.sent { margin-left: auto; text-align: right; }
+  .msg-bubble.received { margin-right: auto; text-align: left; }
+  .msg-content { display: inline-block; padding: 10px 14px; border-radius: 12px; font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.5; max-width: 100%; word-wrap: break-word; text-align: left; }
+  .msg-bubble.sent .msg-content { background: #3B82F6; color: white; border-bottom-right-radius: 4px; }
+  .msg-bubble.received .msg-content { background: #F3F4F6; color: #111827; border-bottom-left-radius: 4px; }
+  .msg-bubble.supervisor .msg-content { background: #1E3A5F; color: white; border-bottom-left-radius: 4px; }
+  .msg-meta { font-size: 11px; color: #9CA3AF; margin-top: 3px; font-family: 'Times New Roman', serif; }
+  .msg-ticks { font-size: 11px; margin-left: 4px; }
+  .msg-ticks.delivered { color: #9CA3AF; }
+  .msg-ticks.seen { color: #10B981; }
+  .msg-reply-box { margin-top: 6px; display: flex; gap: 6px; }
+  .msg-reply-box input { flex: 1; padding: 6px 10px; border: 1.5px solid #E5E7EB; border-radius: 8px; font-family: 'Times New Roman', serif; font-size: 13px; outline: none; }
+  .msg-reply-box button { padding: 6px 12px; background: #3B82F6; color: white; border: none; border-radius: 8px; font-family: 'Times New Roman', serif; font-size: 12px; font-weight: 600; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -575,6 +589,11 @@
           <button class="bell-btn" onclick="navTo('pg-notifications')" title="Notifications">🔔</button>
           <span class="bell-count" id="bell-count-beds"></span>
         </div>
+        <button id="btn-msg-dashboard" onclick="openDashboardMessages()"
+          style="position:relative; background:none; border:none; cursor:pointer; padding:6px; min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; font-size:22px">
+          💬
+          <span id="dash-msg-badge" style="display:none; position:absolute; top:2px; right:2px; background:#EF4444; color:white; font-size:10px; font-weight:700; padding:2px 5px; border-radius:10px; min-width:16px; text-align:center">0</span>
+        </button>
         <div class="hdr-user">
           <div class="hdr-uname" id="beds-uname"></div>
           <span class="badge" id="beds-badge"></span>
@@ -1050,6 +1069,42 @@
       </div>
     </div>
 
+    <!-- Messages Section -->
+    <div class="sec" id="msg-section">
+      <div class="sec-hdr" onclick="toggleSection('msg-body','msg-arrow')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">💬</span>
+          <span class="sec-ttl">Messages</span>
+          <span id="msg-unread-badge" style="display:none;background:#EF4444;color:white;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px">0</span>
+        </div>
+        <span class="sec-arrow" id="msg-arrow">▼</span>
+      </div>
+      <div id="msg-body" style="padding:0 16px 16px">
+
+        <!-- Messages list -->
+        <div id="msg-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
+          <div style="text-align:center;color:#9CA3AF;padding:20px;font-size:14px">No messages yet</div>
+        </div>
+
+        <!-- Send box -->
+        <div id="msg-send-box">
+          <div style="margin-bottom:10px">
+            <div style="font-size:12px;font-weight:600;color:#6B7280;margin-bottom:6px">SEND TO:</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap" id="msg-targets"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <textarea id="msg-input" rows="2" placeholder="Type a message..."
+              style="flex:1;padding:10px;border:1.5px solid #E5E7EB;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;resize:none;outline:none"></textarea>
+            <button onclick="sendPatientMessage()"
+              style="padding:10px 16px;background:#3B82F6;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;font-weight:700;cursor:pointer;min-height:48px;white-space:nowrap">
+              📤 Send
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1160,6 +1215,20 @@
       style="width:100%;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;cursor:pointer">
       Cancel
     </button>
+  </div>
+</div>
+
+<!-- Dashboard Messages Modal -->
+<div id="modal-dash-messages" class="modal-bg" style="display:none">
+  <div class="modal-card" style="max-width:460px; max-height:85vh; overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="modal-title" style="margin:0">💬 Unread Messages</div>
+      <button onclick="closeModal('modal-dash-messages')"
+        style="background:none;border:none;font-size:20px;cursor:pointer;color:#6B7280">×</button>
+    </div>
+    <div id="dash-msg-list">
+      <div style="text-align:center;color:#9CA3AF;padding:30px">No unread messages</div>
+    </div>
   </div>
 </div>
 
@@ -1755,6 +1824,34 @@
       }
     } catch(pe){ console.warn('Offline photo sync error:', pe); }
 
+  // Sync offline messages
+  try {
+    var offlineMsgs = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
+    if(offlineMsgs.length > 0){
+      toast('Syncing ' + offlineMsgs.length + ' offline messages...', 'ok');
+      var syncedMsgs = [];
+      for(var mi=0; mi<offlineMsgs.length; mi++){
+        var om = Object.assign({}, offlineMsgs[mi]);
+        delete om.id;
+        try {
+          var mr = await db.from('patient_comments').insert(om).select('*').single();
+          if(!mr.error){
+            syncedMsgs.push(offlineMsgs[mi].id);
+            var notifMsg = '💬 ' + om.sender_name + ' — Bed ' + om.bed_id + ': ' + om.message.substring(0,50);
+            if(om.target_roles){
+              for(var ti=0; ti<om.target_roles.length; ti++){
+                await sendNotification(om.target_roles[ti], notifMsg, om.bed_id, om.patient_name, 'info');
+              }
+            }
+          }
+        } catch(e){ console.warn('Message sync failed:', e); }
+      }
+      var remaining = offlineMsgs.filter(function(m){ return syncedMsgs.indexOf(m.id) < 0; });
+      localStorage.setItem('kmch-offline-messages', JSON.stringify(remaining));
+      if(syncedMsgs.length > 0) toast(syncedMsgs.length + ' messages synced ✓', 'ok');
+    }
+  } catch(e){ console.warn('Message sync error:', e); }
+
   if(failed.length === 0){
     toast('All changes synced ✓', 'ok');
     await loadBeds();
@@ -2014,6 +2111,7 @@
       startRealtime();
       // Subscribe to push notifications
       setTimeout(subscribeToPush, 2000);
+      setTimeout(loadDashboardMessages, 3000);
       if(isOnline && offlineQueue.length > 0){ setTimeout(processSyncQueue, 2000); }
       await showAppFromState();
       db.from('users').select('name,role').eq('id',authUser.id).single().then(function(r){
@@ -2035,6 +2133,7 @@
     await loadTodayStats();
     await loadNotifications();
     startRealtime();
+    setTimeout(loadDashboardMessages, 3000);
     if(isOnline && offlineQueue.length > 0){ setTimeout(processSyncQueue, 2000); }
     await showAppFromState();
   }
@@ -2165,6 +2264,28 @@
       .subscribe(function(status){
         console.log('Notif channel status:', status);
       });
+
+    // Messages realtime
+    if(msgChannel) db.removeChannel(msgChannel);
+    msgChannel = db.channel('msg-rt-'+me.id)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'patient_comments'
+      }, function(payload){
+        var msg = payload.new;
+        if(msg.bed_id === curBed &&
+           msg.sender_id !== me.id &&
+           msg.target_roles &&
+           msg.target_roles.indexOf(me.role) >= 0){
+          patientComments.push(msg);
+          renderMessages();
+          loadDashboardMessages();
+          markMessagesAsSeen(curBed);
+          try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+        }
+      })
+      .subscribe();
   }
   function stopRealtime(){
     if(rtChannel){ db.removeChannel(rtChannel); rtChannel=null; }
@@ -2263,6 +2384,8 @@
           showPage('pg-detail');
           sessionStorage.setItem('currentBed', num);
           sessionStorage.setItem('lastPage','pg-detail');
+          renderMsgTargets();
+          loadPatientMessages(num);
           busy(false);
           return;
         }
@@ -2286,6 +2409,9 @@
     renderDetail();
     setHdr('det');
     showPage('pg-detail');
+    // Load messages for this bed
+    renderMsgTargets();
+    loadPatientMessages(num);
     // Load offline cached photos if offline
     if(!isOnline){
       try {
@@ -2947,6 +3073,11 @@
       ?await db.from('patient_records').delete().eq('id',rec.id)
       :await db.from('patient_records').delete().eq('bed_id',rec.bed_id);
     if(del.error) console.error('deletePatient:',del.error.message);
+    // Delete all messages for this bed
+    try {
+      await db.from('patient_comments').delete().eq('bed_id', curBed);
+      localStorage.removeItem('kmch-comments-'+curBed);
+    } catch(e){ console.warn('Message cleanup error:', e); }
   }
 
   async function downloadAndDischarge(){
@@ -4117,6 +4248,362 @@
     toast('User removed successfully ✓','ok');
     closeModal('modal-delete-user');
     admLoadUsers();
+  }
+
+  var msgTargetRoles = [];
+  var patientComments = [];
+  var msgChannel = null;
+
+  var MSG_TARGETS = {
+    nurse: ['intern','midlevel'],
+    intern: ['nurse','midlevel'],
+    midlevel: ['nurse','intern'],
+    supervisor: ['nurse','intern','midlevel']
+  };
+
+  function renderMsgTargets(){
+    var container = document.getElementById('msg-targets');
+    if(!container || !me) return;
+    var allowed = MSG_TARGETS[me.role] || [];
+    msgTargetRoles = [];
+    container.innerHTML = allowed.map(function(role){
+      var labels = {nurse:'🩺 Nurse', intern:'👨‍⚕️ Intern', midlevel:'👩‍⚕️ Midlevel'};
+      return '<button id="msg-target-'+role+'" onclick="toggleMsgTarget(\''+role+'\')"'
+        +' style="padding:8px 12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;background:white;color:#374151">'
+        +labels[role]+'</button>';
+    }).join('');
+  }
+
+  function toggleMsgTarget(role){
+    var idx = msgTargetRoles.indexOf(role);
+    var btn = document.getElementById('msg-target-'+role);
+    if(idx >= 0){
+      msgTargetRoles.splice(idx,1);
+      if(btn){ btn.style.background='white'; btn.style.color='#374151'; btn.style.borderColor='#E5E7EB'; }
+    } else {
+      msgTargetRoles.push(role);
+      if(btn){ btn.style.background='#3B82F6'; btn.style.color='white'; btn.style.borderColor='#3B82F6'; }
+    }
+  }
+
+  async function loadPatientMessages(bedId){
+    if(!isOnline){
+      try {
+        var cached = JSON.parse(localStorage.getItem('kmch-comments-'+bedId)||'[]');
+        patientComments = cached;
+        renderMessages();
+      } catch(e){}
+      return;
+    }
+
+    var r = await db.from('patient_comments')
+      .select('*')
+      .eq('bed_id', bedId)
+      .order('created_at', {ascending: true});
+
+    if(r.error){ console.error('Load comments error:', r.error.message); return; }
+    patientComments = r.data || [];
+
+    try { localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments)); } catch(e){}
+
+    renderMessages();
+    markMessagesAsSeen(bedId);
+  }
+
+  function renderMessages(){
+    var list = document.getElementById('msg-list');
+    if(!list) return;
+
+    if(patientComments.length === 0){
+      list.innerHTML = '<div style="text-align:center;color:#9CA3AF;padding:20px;font-size:14px">No messages yet</div>';
+      return;
+    }
+
+    var topLevel = patientComments.filter(function(m){ return !m.reply_to; });
+
+    list.innerHTML = topLevel.map(function(msg){
+      var isSent = msg.sender_id === me.id;
+      var isSupervisor = msg.sender_role === 'supervisor';
+      var bubbleClass = isSent ? 'sent' : (isSupervisor ? 'supervisor' : 'received');
+      var replies = patientComments.filter(function(r){ return r.reply_to === msg.id; });
+      var ticks = '<span class="msg-ticks delivered">✓✓</span>';
+      var roleColors = {nurse:'#3B82F6',intern:'#8B5CF6',midlevel:'#10B981',supervisor:'#1E3A5F'};
+      var roleColor = roleColors[msg.sender_role] || '#6B7280';
+      var timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      var targets = msg.target_roles ? msg.target_roles.join(', ') : '';
+
+      var html = '<div class="msg-bubble '+bubbleClass+'" id="msg-'+msg.id+'">';
+      if(!isSent){
+        html += '<div style="font-size:11px;font-weight:700;color:'+roleColor+';margin-bottom:3px">'+esc(msg.sender_name||'')+'</div>';
+      }
+      html += '<div class="msg-content">'+esc(msg.message)+'</div>';
+      html += '<div class="msg-meta">';
+      if(targets) html += '→ '+targets+' · ';
+      html += timeStr;
+      if(isSent) html += ticks;
+      html += '</div>';
+
+      if(replies.length > 0){
+        html += '<div style="margin-top:8px;padding-left:16px;border-left:2px solid #E5E7EB">';
+        replies.forEach(function(reply){
+          var rIsSent = reply.sender_id === me.id;
+          var rColor = roleColors[reply.sender_role] || '#6B7280';
+          var rTime = reply.created_at ? new Date(reply.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+          html += '<div style="margin-bottom:6px">';
+          html += '<div style="font-size:11px;font-weight:700;color:'+rColor+'">'+esc(reply.sender_name||'')+'</div>';
+          html += '<div style="background:'+(rIsSent?'#DBEAFE':'#F3F4F6')+';padding:8px 10px;border-radius:8px;font-size:13px">'+esc(reply.message)+'</div>';
+          html += '<div class="msg-meta">'+rTime+'</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+
+      var canReply = !isSent && (
+        isSupervisor ||
+        (msg.target_roles && msg.target_roles.indexOf(me.role) >= 0)
+      );
+      if(canReply){
+        html += '<div class="msg-reply-box">';
+        html += '<input id="reply-msg-'+msg.id+'" type="text" placeholder="Reply...">';
+        html += '<button onclick="replyToMessage(\''+msg.id+'\')">↩️ Reply</button>';
+        html += '</div>';
+      }
+
+      html += '</div>';
+      return html;
+    }).join('');
+
+    list.scrollTop = list.scrollHeight;
+
+    var unread = patientComments.filter(function(m){
+      return m.sender_id !== me.id &&
+             m.target_roles &&
+             m.target_roles.indexOf(me.role) >= 0;
+    }).length;
+    var badge = document.getElementById('msg-unread-badge');
+    if(badge){
+      badge.style.display = unread > 0 ? 'inline-block' : 'none';
+      badge.textContent = unread;
+    }
+  }
+
+  var allUnreadMessages = [];
+
+  async function loadDashboardMessages(){
+    if(!me) return;
+
+    if(!isOnline){
+      allUnreadMessages = [];
+      try {
+        var bedCache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        Object.keys(bedCache).forEach(function(bedId){
+          var cached = JSON.parse(localStorage.getItem('kmch-comments-'+bedId)||'[]');
+          cached.forEach(function(m){
+            if(m.sender_id !== me.id &&
+               m.target_roles &&
+               m.target_roles.indexOf(me.role) >= 0){
+              allUnreadMessages.push(m);
+            }
+          });
+        });
+      } catch(e){}
+      updateDashMsgBadge();
+      return;
+    }
+
+    var sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    var r = await db.from('patient_comments')
+      .select('*')
+      .contains('target_roles', [me.role])
+      .neq('sender_id', me.id)
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', {ascending: false});
+
+    if(r.error){ console.warn('Dashboard messages error:', r.error); return; }
+    allUnreadMessages = r.data || [];
+    updateDashMsgBadge();
+  }
+
+  function updateDashMsgBadge(){
+    var badge = document.getElementById('dash-msg-badge');
+    var count = allUnreadMessages.length;
+    if(badge){
+      badge.style.display = count > 0 ? 'block' : 'none';
+      badge.textContent = count > 9 ? '9+' : count;
+    }
+  }
+
+  function openDashboardMessages(){
+    loadDashboardMessages().then(function(){
+      var listEl = document.getElementById('dash-msg-list');
+      if(!listEl) return;
+
+      if(allUnreadMessages.length === 0){
+        listEl.innerHTML = '<div style="text-align:center;color:#9CA3AF;padding:30px;font-size:14px">No messages for you</div>';
+        document.getElementById('modal-dash-messages').style.display = 'flex';
+        return;
+      }
+
+      var byBed = {};
+      allUnreadMessages.forEach(function(m){
+        if(!byBed[m.bed_id]) byBed[m.bed_id] = [];
+        byBed[m.bed_id].push(m);
+      });
+
+      var roleColors = {nurse:'#3B82F6',intern:'#8B5CF6',midlevel:'#10B981',supervisor:'#1E3A5F'};
+
+      listEl.innerHTML = Object.keys(byBed).map(function(bedId){
+        var msgs = byBed[bedId];
+        var latest = msgs[0];
+        var bedLbl = parseInt(bedId)>=61?'Extra '+(parseInt(bedId)-60):'Bed '+bedId;
+        var roleColor = roleColors[latest.sender_role] || '#6B7280';
+        var timeStr = latest.created_at ? new Date(latest.created_at).toLocaleString([], {
+          month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+        }) : '';
+
+        return '<div onclick="closeDashMsgAndOpenBed('+bedId+')"'
+          +' style="padding:14px;border-radius:10px;background:#F8FAFF;margin-bottom:10px;cursor:pointer;border:1.5px solid #E5E7EB">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+          +'<div style="font-weight:700;font-size:14px;color:#1E3A5F">'+bedLbl
+          +(latest.patient_name?' — '+esc(latest.patient_name):'')+'</div>'
+          +'<span style="background:#EF4444;color:white;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px">'+msgs.length+' msg'+(msgs.length>1?'s':'')+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;font-weight:700;color:'+roleColor+'">'+esc(latest.sender_name||'')+'</div>'
+          +'<div style="font-size:13px;color:#374151;margin-top:3px">'+esc((latest.message||'').substring(0,60))+(latest.message&&latest.message.length>60?'...':'')+'</div>'
+          +'<div style="font-size:11px;color:#9CA3AF;margin-top:4px">'+timeStr+'</div>'
+          +'</div>';
+      }).join('');
+
+      document.getElementById('modal-dash-messages').style.display = 'flex';
+    });
+  }
+
+  function closeDashMsgAndOpenBed(bedId){
+    closeModal('modal-dash-messages');
+    setTimeout(function(){ openBed(parseInt(bedId)); }, 200);
+  }
+
+  async function sendPatientMessage(){
+    var text = document.getElementById('msg-input').value.trim();
+    if(!text){ toast('Type a message first','err'); return; }
+    if(msgTargetRoles.length === 0){ toast('Select who to send to','err'); return; }
+
+    var msg = {
+      bed_id: curBed,
+      patient_name: rec ? rec.name : '',
+      message: text,
+      sender_id: me.id,
+      sender_name: me.name,
+      sender_role: me.role,
+      target_roles: msgTargetRoles,
+      created_at: new Date().toISOString()
+    };
+
+    if(!isOnline){
+      msg.id = 'offline-msg-'+Date.now();
+      patientComments.push(msg);
+      try {
+        localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments));
+        var offlineMsgsArr = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
+        offlineMsgsArr.push(msg);
+        localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgsArr));
+      } catch(e){}
+      document.getElementById('msg-input').value = '';
+      renderMessages();
+      toast('Message saved offline — will send when online','ok');
+      return;
+    }
+
+    var r = await db.from('patient_comments').insert(msg).select('*').single();
+    if(r.error){ toast('Failed to send: '+r.error.message,'err'); return; }
+
+    patientComments.push(r.data);
+    document.getElementById('msg-input').value = '';
+    renderMessages();
+
+    var notifMsg = '💬 ' + me.name + ' (' + me.role + ') — Bed ' + curBed + ' ' + (rec?rec.name:'') + ': ' + text.substring(0,50);
+    for(var i=0; i<msgTargetRoles.length; i++){
+      await sendNotification(msgTargetRoles[i], notifMsg, curBed, rec?rec.name:'', 'info');
+      await sendPushNotification(msgTargetRoles[i], '💬 New Message', notifMsg);
+    }
+
+    try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+  }
+
+  async function replyToMessage(msgId){
+    var input = document.getElementById('reply-msg-'+msgId);
+    if(!input || !input.value.trim()){ toast('Type a reply','err'); return; }
+    var text = input.value.trim();
+    var original = patientComments.find(function(m){ return m.id === msgId; });
+    if(!original) return;
+
+    var reply = {
+      bed_id: curBed,
+      patient_name: rec ? rec.name : '',
+      message: text,
+      sender_id: me.id,
+      sender_name: me.name,
+      sender_role: me.role,
+      target_roles: [original.sender_role],
+      reply_to: msgId,
+      created_at: new Date().toISOString()
+    };
+
+    if(!isOnline){
+      reply.id = 'offline-reply-'+Date.now();
+      patientComments.push(reply);
+      try {
+        localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments));
+        var offlineMsgsArr = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
+        offlineMsgsArr.push(reply);
+        localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgsArr));
+      } catch(e){}
+      input.value = '';
+      renderMessages();
+      toast('Reply saved offline','ok');
+      return;
+    }
+
+    var r = await db.from('patient_comments').insert(reply).select('*').single();
+    if(r.error){ toast('Failed to reply: '+r.error.message,'err'); return; }
+
+    patientComments.push(r.data);
+    input.value = '';
+    renderMessages();
+
+    var notifMsg = '↩️ ' + me.name + ' replied — Bed ' + curBed + ': ' + text.substring(0,50);
+    await sendNotification(original.sender_role, notifMsg, curBed, rec?rec.name:'', 'info');
+    await sendPushNotification(original.sender_role, '↩️ Reply to your message', notifMsg);
+
+    try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+  }
+
+  async function markMessagesAsSeen(bedId){
+    var myMsgs = patientComments.filter(function(m){
+      return m.sender_id !== me.id &&
+             m.target_roles &&
+             m.target_roles.indexOf(me.role) >= 0;
+    });
+    for(var i=0; i<myMsgs.length; i++){
+      try {
+        await db.from('message_seen').upsert({
+          comment_id: myMsgs[i].id,
+          user_id: me.id,
+          seen_at: new Date().toISOString()
+        }, {onConflict: 'comment_id,user_id'});
+      } catch(e){}
+    }
+  }
+
+  function toggleSection(bodyId, arrowId){
+    var body = document.getElementById(bodyId);
+    var arrow = document.getElementById(arrowId);
+    if(!body) return;
+    var hidden = body.style.display === 'none';
+    body.style.display = hidden ? '' : 'none';
+    if(arrow) arrow.textContent = hidden ? '▼' : '▶';
   }
 
   var supTargetRoles = [];
