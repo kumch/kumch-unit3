@@ -602,6 +602,10 @@
           <div class="stat-item" onclick="openStatsModal('female','Female Patients')"><div class="stat-n" id="s-female">—</div><div class="stat-l">👩 Female</div></div>
           <div class="stat-item" onclick="openCriticalModal()"><div class="stat-n red" id="s-crit">—</div><div class="stat-l" style="color:#EF4444">🔴 Critical</div></div>
           <div class="stat-item" onclick="openStatsModal('ongoing','Diagnosis Ongoing')"><div class="stat-n" style="color:#F59E0B" id="s-ongoing">—</div><div class="stat-l" style="color:#D97706">⚠️ Ongoing</div></div>
+          <div class="stat-item" onclick="openSupervisorAttentionModal()">
+            <div class="stat-n" style="color:#F59E0B" id="s-sup-attn">0</div>
+            <div class="stat-l" style="color:#F59E0B">👁️ SUP ATTN</div>
+          </div>
         </div>
       </div>
     </div>
@@ -856,10 +860,15 @@
         <div class="det-bed" id="det-bed-lbl"></div>
         <div class="det-pt"  id="det-pt-name"></div>
         <div class="det-lu"  id="det-lu"></div>
+        <div id="sup-attn-badge" style="display:none; background:#FEF3C7; color:#B45309; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; margin-top:4px"></div>
       </div>
       <div class="det-actions">
         <button class="btn-critical" id="btn-crit" onclick="toggleCritical()">🔴 Mark Critical</button>
         <button class="btn-discharge" id="btn-disc" onclick="openDischarge()" style="display:none">🏥 Discharge</button>
+        <button id="btn-sup-instruct" onclick="openSupervisorMsg()"
+          style="display:none; padding:10px 14px; background:#1E3A5F; color:white; border:none; border-radius:10px; font-family:'Times New Roman',serif; font-size:13px; font-weight:600; cursor:pointer; min-height:44px">
+          📋 Send Instruction
+        </button>
       </div>
     </div>
 
@@ -932,6 +941,13 @@
           <div class="field"><div class="f-lbl">Management</div><div class="f-val" id="vv-mgmt"></div><div id="vv-mgmt-ph"></div></div>
           <div id="btn-ongoing-wrap" style="display:none;margin-top:10px">
             <button class="btn-ongoing" id="btn-ongoing" onclick="markOngoing()">📊 Mark Diagnosis Ongoing</button>
+          </div>
+          <div id="btn-sup-attn-wrap" style="display:none; margin-top:8px">
+            <button id="btn-sup-attn" onclick="toggleSupervisorAttention()"
+              class="btn-ongoing"
+              style="width:100%; padding:12px; border-radius:10px; font-family:'Times New Roman',serif; font-size:14px; font-weight:600; cursor:pointer; min-height:48px; border:1.5px solid #F59E0B; background:#FFFBEB; color:#B45309">
+              👁️ Request Supervisor Attention
+            </button>
           </div>
         </div>
         <div id="se2" style="display:none">
@@ -1101,6 +1117,47 @@
       ✅ Update Password
     </button>
     <button onclick="closeModal('modal-change-pass')" style="width:100%;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;cursor:pointer">
+      Cancel
+    </button>
+  </div>
+</div>
+
+<!-- Supervisor Instruction Modal -->
+<div id="modal-supervisor-msg" class="modal-bg" style="display:none">
+  <div class="modal-card" style="max-width:420px">
+    <div class="modal-title">📋 Send Instruction</div>
+    <div id="sup-msg-bed-info" style="color:#6B7280;font-size:13px;margin-bottom:14px"></div>
+
+    <div style="margin-bottom:12px">
+      <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:8px">SEND TO</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="supToggleTarget('nurse')" id="sup-target-nurse"
+          style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">
+          🩺 Nurse
+        </button>
+        <button onclick="supToggleTarget('intern')" id="sup-target-intern"
+          style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">
+          👨‍⚕️ Intern
+        </button>
+        <button onclick="supToggleTarget('midlevel')" id="sup-target-midlevel"
+          style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">
+          👩‍⚕️ Midlevel
+        </button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:4px">INSTRUCTION</label>
+      <textarea id="sup-msg-text" rows="4" placeholder="Write instruction for the selected staff..."
+        style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+    </div>
+
+    <button onclick="supSendInstruction()"
+      style="width:100%;padding:14px;background:#1E3A5F;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;min-height:52px">
+      📤 Send Instruction
+    </button>
+    <button onclick="closeModal('modal-supervisor-msg')"
+      style="width:100%;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;cursor:pointer">
       Cancel
     </button>
   </div>
@@ -1983,6 +2040,14 @@
   }
 
   async function showAppFromState(){
+    if(me && me.role === 'supervisor'){
+      // Supervisor sees dashboard + all patients + notifications
+      // But NO export data, no search restrictions
+      currentAppPage = 'pg-beds';
+      showPage('pg-beds');
+      updateSidebarActive();
+      return;
+    }
     if(me && me.role === 'admin'){
       // Hide normal nav items
       var normalItems = ['sb-dashboard','sb-all','sb-search','sb-notif','sb-export'];
@@ -2123,7 +2188,7 @@
       } catch(e){}
       return;
     }
-    var r=await db.from('patient_records').select('bed_id,name,age,sex,address,registration_no,provisional_dx,is_critical,diagnosis_status').order('bed_id');
+    var r=await db.from('patient_records').select('bed_id,name,age,sex,address,registration_no,provisional_dx,is_critical,diagnosis_status,supervisor_attention,supervisor_attention_by').order('bed_id');
     if(r.error){ toast('Load beds failed: '+r.error.message,'err'); return; }
     recs=r.data||[];
     try { var cacheObj={}; recs.forEach(function(r){ cacheObj[r.bed_id]=r; }); localStorage.setItem('kmch-beds-cache', JSON.stringify(cacheObj)); } catch(e){}
@@ -2144,6 +2209,8 @@
     if(femaleEl) femaleEl.textContent=female;
     if(critEl) critEl.textContent=crit;
     if(ongoingEl) ongoingEl.textContent=ongoing;
+    var supAttnEl = document.getElementById('s-sup-attn');
+    if(supAttnEl) supAttnEl.textContent = recs.filter(function(r){ return isOcc(r) && r.supervisor_attention; }).length;
 
     // Critical alert + ticker
     var critBeds=recs.filter(function(r){ return r.is_critical; });
@@ -2244,8 +2311,20 @@
     if(rec.is_critical){ cb.textContent='✅ Critical'; cb.classList.add('active'); }
     else { cb.textContent='🔴 Mark Critical'; cb.classList.remove('active'); }
 
+    // Supervisor attention badge
+    var supBadge = document.getElementById('sup-attn-badge');
+    if(rec.supervisor_attention){
+      if(supBadge){ supBadge.style.display='inline-flex'; supBadge.textContent='👁️ SUP ATTN: '+(rec.supervisor_attention_by||''); }
+    } else {
+      if(supBadge) supBadge.style.display='none';
+    }
+
     // Discharge: all roles when occupied
     document.getElementById('btn-disc').style.display=occ?'':'none';
+
+    // Supervisor instruction button
+    var supInstructBtn = document.getElementById('btn-sup-instruct');
+    if(supInstructBtn) supInstructBtn.style.display = (me && me.role === 'supervisor') ? 'inline-flex' : 'none';
 
     // Edit buttons
     document.getElementById('btn-e1').style.display=(role==='nurse'||role==='midlevel')?'':'none';
@@ -2269,6 +2348,25 @@
           ongoingBtn.className='btn-ongoing';
           ongoingBtn.disabled=false; ongoingBtn.style.opacity='';
         }
+      }
+    }
+    var supAttnWrap = document.getElementById('btn-sup-attn-wrap');
+    if(supAttnWrap){
+      // Only show for midlevel
+      if(me.role === 'midlevel'){
+        supAttnWrap.style.display = 'block';
+        var supBtn = document.getElementById('btn-sup-attn');
+        if(supBtn){
+          if(rec.supervisor_attention){
+            supBtn.textContent = '↩️ Remove Supervisor Attention';
+            supBtn.className = 'btn-ongoing-undo';
+          } else {
+            supBtn.textContent = '👁️ Request Supervisor Attention';
+            supBtn.className = 'btn-ongoing';
+          }
+        }
+      } else {
+        supAttnWrap.style.display = 'none';
       }
     }
     // ONGOING badge on section 2 header
@@ -2503,6 +2601,7 @@
       var removedByName=me.name+' ('+me.role+')';
       var removeMsg='✅ Critical REMOVED: Bed '+rec.bed_id+' — '+(rec.name||'')+' — removed by '+removedByName;
       await sendNotification('all',removeMsg,rec.bed_id,rec.name,'info');
+      await sendPushNotification('all', '✅ Critical REMOVED', removeMsg);
       notifications=[];
       unreadCount=0;
       await loadNotifications();
@@ -3009,6 +3108,17 @@
         +'<div class="notif-msg">'+esc(n.message||'')+'</div>'
         +(n.bed_id?'<div class="notif-sub">'+bedLbl+(n.patient_name?' · '+esc(n.patient_name):'')+'</div>':'')
         +'<div class="notif-time">'+timeAgo(n.created_at)+'</div>'
+        +(n.message && n.message.includes('INSTRUCTION') && me && me.role !== 'supervisor' ?
+          '<div style="margin-top:8px">'
+          +(n.reply ?
+            '<div style="background:#F0FDF4;border-radius:6px;padding:8px;font-size:12px;color:#065F46;margin-bottom:6px">✅ Replied: '+esc(n.reply)+'</div>'
+            : '')
+          +'<div style="display:flex;gap:6px">'
+          +'<input id="reply-'+n.id+'" type="text" placeholder="Type reply..." style="flex:1;padding:8px;border:1.5px solid #E5E7EB;border-radius:6px;font-family:\'Times New Roman\',serif;font-size:13px">'
+          +'<button onclick="sendReply(\''+n.id+'\')" style="padding:8px 12px;background:#3B82F6;color:white;border:none;border-radius:6px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer">Send</button>'
+          +'</div>'
+          +'</div>'
+          : '')
         +'</div>'
         +(!n.is_read?'<div class="notif-unread-dot"></div>':'')
         +'</div>';
@@ -3067,6 +3177,70 @@
       toast('Ongoing status removed','ok');
       db.from('notifications').delete().eq('bed_id',rec.bed_id).eq('type','ongoing').then(function(){});
     }
+  }
+
+  async function toggleSupervisorAttention(){
+    if(!rec || !me) return;
+    var newVal = !rec.supervisor_attention;
+    var updates = {
+      supervisor_attention: newVal,
+      supervisor_attention_by: newVal ? (me.name + ' (' + me.role + ')') : null,
+      supervisor_attention_at: newVal ? new Date().toISOString() : null,
+      updated_by: me.id,
+      updated_at: new Date().toISOString()
+    };
+
+    var r = await db.from('patient_records').update(updates).eq('bed_id', curBed);
+    if(r.error){ toast('Failed to update: '+r.error.message, 'err'); return; }
+
+    rec = Object.assign(rec, updates);
+
+    var supBtn = document.getElementById('btn-sup-attn');
+    if(supBtn){
+      if(newVal){
+        supBtn.textContent = '↩️ Remove Supervisor Attention';
+        supBtn.className = 'btn-ongoing-undo';
+        // Notify supervisor
+        var msg = '👁️ SUPERVISOR ATTENTION: Bed ' + rec.bed_id + ' — ' + rec.name + ' — requested by ' + me.name + ' (' + me.role + ')';
+        await sendNotification('supervisor', msg, rec.bed_id, rec.name, 'critical');
+        await sendPushNotification('supervisor', '👁️ Supervisor Attention Needed', msg);
+        toast('Supervisor notified ✓', 'ok');
+      } else {
+        supBtn.textContent = '👁️ Request Supervisor Attention';
+        supBtn.className = 'btn-ongoing';
+        // Delete supervisor attention notifications
+        await db.from('notifications').delete().eq('bed_id', rec.bed_id).eq('recipient_role', 'supervisor');
+        toast('Supervisor attention removed ✓', 'ok');
+      }
+    }
+    renderGrid();
+  }
+
+  function openSupervisorAttentionModal(){
+    var attnBeds = recs.filter(function(r){ return isOcc(r) && r.supervisor_attention; });
+    var modal = document.getElementById('modal-crit-list');
+    if(!modal) return;
+    var titleEl = document.getElementById('cth-title');
+    var subEl = document.getElementById('cth-sub');
+    var gridEl = document.getElementById('cth-grid');
+    if(titleEl) titleEl.textContent = '👁️ Supervisor Attention Required';
+    if(subEl) subEl.textContent = attnBeds.length + ' patient' + (attnBeds.length===1?'':'s') + ' need attention';
+    if(gridEl){
+      gridEl.innerHTML = attnBeds.length === 0
+        ? '<div style="text-align:center;color:#9CA3AF;padding:30px">No patients need supervisor attention</div>'
+        : attnBeds.map(function(r){
+            var bedLbl = r.bed_id>=61?'E'+(r.bed_id-60):'Bed '+r.bed_id;
+            return '<div class="cth-card occ" onclick="closeCritModal();openBed('+r.bed_id+')" style="border-color:#F59E0B;background:#FFFBEB;cursor:pointer">'
+              +'<div class="bc-n">'+bedLbl+'</div>'
+              +'<div style="font-size:20px">👁️</div>'
+              +'<div class="bc-p">'+esc(r.name||'Unknown')+'</div>'
+              +(r.age!=null?'<div class="bc-reg">'+r.age+' yrs</div>':'')
+              +(r.provisional_dx?'<div class="bc-reg" style="font-style:italic">'+esc(r.provisional_dx.substring(0,30))+'</div>':'')
+              +(r.supervisor_attention_by?'<div class="bc-reg" style="font-size:10px;color:#B45309">By: '+esc(r.supervisor_attention_by)+'</div>':'')
+              +'</div>';
+          }).join('')
+    }
+    modal.style.display = 'flex';
   }
 
   // ── Save Particulars Only ──
@@ -3368,6 +3542,7 @@
         +'<div class="bc-n">'+(r.bed_id>=61?'EXTRA ':'BED ')+bedLbl+'</div>'
         +'<div class="bc-i"'+(on?'':' style="opacity:.28"')+'>🛏️</div>'
         +(isCrit?'<div class="crit-badge">🔴 CRITICAL</div>':'')
+        +(r.supervisor_attention?'<div style="position:absolute;top:4px;left:4px;background:#F59E0B;color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px">👁️ SUP</div>':'')
         +(on?'<div class="bc-p'+(isCrit?' crit':'')+'">'+esc(r.name||'')+'</div>':'')
         +(on&&r.age!=null?'<div class="bc-reg">'+r.age+' yrs</div>':'')
         +(!on?'<div class="bc-e">Empty</div>':'')
@@ -3434,6 +3609,7 @@
           +(r.age!=null?'<div class="bc-reg">'+r.age+' yrs</div>':'')
           +(dx?'<div class="bc-reg" style="font-size:10px;color:#9CA3AF">'+esc(dx)+'</div>':'')
           +(isCrit?'<div class="crit-badge" style="font-size:9px;padding:1px 4px">🔴</div>':'')
+          +(r.supervisor_attention?'<div style="position:absolute;top:4px;left:4px;background:#F59E0B;color:white;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px">👁️ SUP</div>':'')
           +'</div>';
       }).join('');
     } else {
@@ -3941,6 +4117,77 @@
     toast('User removed successfully ✓','ok');
     closeModal('modal-delete-user');
     admLoadUsers();
+  }
+
+  var supTargetRoles = [];
+
+  function supToggleTarget(role){
+    var idx = supTargetRoles.indexOf(role);
+    var btn = document.getElementById('sup-target-'+role);
+    if(idx >= 0){
+      supTargetRoles.splice(idx, 1);
+      if(btn){ btn.style.background='white'; btn.style.color='#374151'; btn.style.borderColor='#E5E7EB'; }
+    } else {
+      supTargetRoles.push(role);
+      if(btn){ btn.style.background='#1E3A5F'; btn.style.color='white'; btn.style.borderColor='#1E3A5F'; }
+    }
+  }
+
+  function openSupervisorMsg(){
+    if(!rec) return;
+    supTargetRoles = [];
+    ['nurse','intern','midlevel'].forEach(function(r){
+      var btn = document.getElementById('sup-target-'+r);
+      if(btn){ btn.style.background='white'; btn.style.color='#374151'; btn.style.borderColor='#E5E7EB'; }
+    });
+    document.getElementById('sup-msg-text').value = '';
+    var info = document.getElementById('sup-msg-bed-info');
+    if(info) info.textContent = 'Bed ' + rec.bed_id + ' — ' + (rec.name||'Unknown patient');
+    document.getElementById('modal-supervisor-msg').style.display = 'flex';
+  }
+
+  async function supSendInstruction(){
+    if(supTargetRoles.length === 0){ toast('Select at least one recipient','err'); return; }
+    var text = document.getElementById('sup-msg-text').value.trim();
+    if(!text){ toast('Write an instruction first','err'); return; }
+
+    var senderName = me.name + ' (Supervisor)';
+    var bedInfo = 'Bed ' + rec.bed_id + ' — ' + (rec.name||'Unknown');
+
+    busy(true);
+
+    for(var i=0; i<supTargetRoles.length; i++){
+      var targetRole = supTargetRoles[i];
+      var msg = '📋 INSTRUCTION from ' + senderName + ' | ' + bedInfo + ': ' + text;
+      await sendNotification(targetRole, msg, rec.bed_id, rec.name, 'info');
+      await sendPushNotification(targetRole, '📋 Supervisor Instruction', bedInfo + ': ' + text);
+    }
+
+    busy(false);
+    closeModal('modal-supervisor-msg');
+    toast('Instruction sent to ' + supTargetRoles.join(', ') + ' ✓', 'ok');
+  }
+
+  async function sendReply(notifId){
+    var input = document.getElementById('reply-'+notifId);
+    if(!input || !input.value.trim()){ toast('Write a reply first','err'); return; }
+    var replyText = input.value.trim();
+
+    var r = await db.from('notifications').update({
+      reply: replyText,
+      replied_by: me.id,
+      replied_at: new Date().toISOString()
+    }).eq('id', notifId);
+
+    if(r.error){ toast('Failed to send reply: '+r.error.message,'err'); return; }
+
+    var replyMsg = '↩️ REPLY from ' + me.name + ' (' + me.role + '): ' + replyText;
+    await sendNotification('supervisor', replyMsg, null, null, 'info');
+    await sendPushNotification('supervisor', '↩️ Reply Received', replyMsg);
+
+    toast('Reply sent to supervisor ✓','ok');
+    await loadNotifications();
+    renderNotifications();
   }
 
 </script>
