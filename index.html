@@ -1326,17 +1326,21 @@
   }
 
   async function checkOnlineStatus(){
+    // Quick check first
+    if(!navigator.onLine){ isOnline = false; updateOnlineStatus(); return false; }
     try {
-      // Try to reach Supabase to confirm connectivity
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function(){ controller.abort(); }, 2000);
       var response = await fetch(
         'https://gzgldhenfyoqctqnwgod.supabase.co/rest/v1/',
         {
           method: 'HEAD',
           headers: {'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6Z2xkaGVuZnlvcWN0cW53Z29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NjcwNjUsImV4cCI6MjA5NTM0MzA2NX0.B3t5i7z5BzjOeW9VjmraPLr5CTT0e8iEhaJ_M9qqF-U'},
           cache: 'no-store',
-          signal: AbortSignal.timeout(5000)
+          signal: controller.signal
         }
       );
+      clearTimeout(timeoutId);
       isOnline = true;
     } catch(e){
       isOnline = false;
@@ -1350,7 +1354,19 @@
 
   // Keep navigator.onLine as backup
   window.addEventListener('online', function(){
-    checkOnlineStatus();
+    checkOnlineStatus().then(function(online){
+      if(online && me){
+        toast('Back online! Syncing data...','ok');
+        loadBeds().then(function(){
+          renderGrid();
+          if(currentAppPage==='pg-all-patients') renderAllPatients();
+          if(offlineQueue.length > 0) processSyncQueue();
+        });
+        loadTodayStats();
+      } else if(online && !me){
+        window.location.reload();
+      }
+    });
   });
   window.addEventListener('offline', function(){
     isOnline = false;
@@ -1848,34 +1864,36 @@
   async function openBed(num){
     sessionStorage.setItem('currentBed', num);
     sessionStorage.setItem('lastPage', 'pg-detail');
-    // If offline, load from cache
+    busy(true);
+    // Try cache first if offline
     if(!isOnline){
       try {
-        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
-        var cachedRec = cachedBeds[num];
-        if(cachedRec){
-          rec = cachedRec;
+        var cache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        if(cache[num]){
+          rec = cache[num];
+          curBed = num;
           renderDetail();
           showPage('pg-detail');
           sessionStorage.setItem('currentBed', num);
-          sessionStorage.setItem('lastPage', 'pg-detail');
+          sessionStorage.setItem('lastPage','pg-detail');
+          busy(false);
           return;
         }
-      } catch(e){ console.warn('Offline bed load error:', e); }
-      toast('No cached data for this bed', 'err');
+      } catch(e){}
+      toast('No cached data for Bed '+num+'. Go online first.','err');
+      busy(false);
       return;
     }
-    busy(true);
     var r=await db.from('patient_records').select('*,updater:updated_by(name,role)').eq('bed_id',num).maybeSingle();
     if(r.error) r=await db.from('patient_records').select('*').eq('bed_id',num).maybeSingle();
     busy(false);
     if(r.error){ toast('Load failed: '+r.error.message,'err'); return; }
     rec=r.data||{bed_id:num};
-    // Cache full record for offline use
+    // Cache for offline use
     try {
-      var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
-      cachedBeds[num] = rec;
-      localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
+      var bedCache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+      bedCache[num] = rec;
+      localStorage.setItem('kmch-beds-cache', JSON.stringify(bedCache));
     } catch(e){}
     collapsed={1:false,2:false,3:false,4:false};
     renderDetail();
@@ -2267,13 +2285,16 @@
       var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
       if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
       else recs.push(payload);
-      // Update cache
-      try {
-        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
-        cachedBeds[payload.bed_id] = payload;
-        localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
-      } catch(e){}
       renderGrid();
+      // Update stats
+      var occEl=document.getElementById('s-occ');
+      if(occEl) occEl.textContent=recs.filter(isOcc).length;
+      // Cache the new patient
+      try {
+        var bedCache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        bedCache[payload.bed_id] = payload;
+        localStorage.setItem('kmch-beds-cache', JSON.stringify(bedCache));
+      } catch(e){}
       renderAllPatients();
       closeAddPatient();
       toast('Patient saved locally (offline) — will sync when online', 'ok');
