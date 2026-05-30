@@ -1047,20 +1047,19 @@
         <div class="photo-ctrl"><div class="photo-btns"><button class="btn-ph" onclick="tri('fi-ap-mg-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-ap-mg-gal')">🖼 Gallery</button></div><div class="thumb-wrap" id="ap-tw-mgmt"><img class="thumb" id="ap-th-mgmt" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearApPhoto('mgmt')">✕</button></div></div>
       </div>
       <div class="modal-nav"><button class="btn-prev" onclick="apGoTo(2)">← Back</button><button class="btn-next btn-green" onclick="saveNewPatient()">💾 Save Patient</button></div>
-      <!-- Show for nurse and midlevel only: notify intern -->
-      <button id="btn-notify-intern" onclick="saveParticularsOnly()"
-        style="width:100%; padding:14px; background:#8B5CF6; color:white;
-        border:none; border-radius:10px; font-family:'Times New Roman',serif;
-        font-size:15px; font-weight:600; cursor:pointer; min-height:52px; margin-top:8px">
+      <button id="ap-btn-notify-intern" onclick="saveParticularsOnly('intern')"
+        style="display:none;width:100%;padding:13px;margin-top:8px;background:#EDE9FE;color:#6D28D9;border:1.5px solid #C4B5FD;border-radius:10px;font-size:14px;font-weight:700;min-height:50px;cursor:pointer">
         ⏭️ Save &amp; Notify Intern
       </button>
 
-      <!-- Show for intern only: notify nurse -->
-      <button id="btn-notify-nurse" onclick="saveAndNotifyNurse()"
-        style="width:100%; padding:14px; background:#3B82F6; color:white;
-        border:none; border-radius:10px; font-family:'Times New Roman',serif;
-        font-size:15px; font-weight:600; cursor:pointer; min-height:52px; margin-top:8px">
+      <button id="ap-btn-notify-nurse" onclick="saveParticularsOnly('nurse')"
+        style="display:none;width:100%;padding:13px;margin-top:8px;background:#DBEAFE;color:#1D4ED8;border:1.5px solid #93C5FD;border-radius:10px;font-size:14px;font-weight:700;min-height:50px;cursor:pointer">
         ⏭️ Save &amp; Notify Nurse
+      </button>
+
+      <button id="ap-btn-notify-both" onclick="saveParticularsOnly('both')"
+        style="display:none;width:100%;padding:13px;margin-top:8px;background:#D1FAE5;color:#065F46;border:1.5px solid #6EE7B7;border-radius:10px;font-size:14px;font-weight:700;min-height:50px;cursor:pointer">
+        ⏭️ Save &amp; Notify Nurse + Intern
       </button>
     </div>
   </div>
@@ -1412,6 +1411,15 @@
             failed.push(item);
           } else {
             console.log('Synced bed:', item.payload.bed_id);
+            // Send any pending notifications
+            if(item.pendingNotifs && item.pendingNotifs.length > 0){
+              for(var pni=0; pni<item.pendingNotifs.length; pni++){
+                var pn = item.pendingNotifs[pni];
+                try {
+                  await sendNotification(pn.role, pn.msg, pn.bedId, pn.name, pn.type);
+                } catch(pe){ console.warn('Pending notif send failed:', pe); }
+              }
+            }
           }
         } else if(item.type === 'update'){
           var r = await db.from('patient_records').update(item.payload).eq('bed_id', item.bed_id);
@@ -2254,11 +2262,19 @@
     var subs=['Step 1 of 3 — Select Bed','Step 2 of 3 — Patient Particulars','Step 3 of 3 — Clinical Details'];
     document.getElementById('ap-sub').textContent=subs[step-1];
 
-    // Show correct notify button based on role
-    var notifyInternBtn = document.getElementById('btn-notify-intern');
-    var notifyNurseBtn = document.getElementById('btn-notify-nurse');
-    if(notifyInternBtn) notifyInternBtn.style.display = (me&&(me.role==='nurse'||me.role==='midlevel')) ? 'block' : 'none';
-    if(notifyNurseBtn) notifyNurseBtn.style.display = (me&&me.role==='intern') ? 'block' : 'none';
+    var btnIntern = document.getElementById('ap-btn-notify-intern');
+    var btnNurse = document.getElementById('ap-btn-notify-nurse');
+    var btnBoth = document.getElementById('ap-btn-notify-both');
+    if(btnIntern) btnIntern.style.display = 'none';
+    if(btnNurse) btnNurse.style.display = 'none';
+    if(btnBoth) btnBoth.style.display = 'none';
+    if(me && me.role === 'nurse'){
+      if(btnIntern) btnIntern.style.display = 'block';
+    } else if(me && me.role === 'intern'){
+      if(btnNurse) btnNurse.style.display = 'block';
+    } else if(me && me.role === 'midlevel'){
+      if(btnBoth) btnBoth.style.display = 'block';
+    }
 
     if(step===1){
       var map={};
@@ -2330,34 +2346,20 @@
     if(!isOnline){
       offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
       saveQueue();
+      var fullRecord = Object.assign({}, payload, {
+        id: 'offline-' + payload.bed_id,
+        is_critical: false,
+        diagnosis_status: 'pending'
+      });
       var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
-      if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
-      else recs.push(payload);
+      if(existing>=0) recs[existing]=fullRecord;
+      else recs.push(fullRecord);
       try {
-        var cachedBeds = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
-        // Store full payload as the cached record
-        var fullRecord = Object.assign({}, payload, {
-          id: 'offline-'+payload.bed_id,
-          is_critical: false,
-          diagnosis_status: 'pending'
-        });
-        cachedBeds[payload.bed_id] = fullRecord;
-        localStorage.setItem('kmch-beds-cache', JSON.stringify(cachedBeds));
-        // Also update recs array with full record
-        var idx = recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
-        if(idx>=0) recs[idx] = fullRecord;
-        else recs.push(fullRecord);
-      } catch(e){ console.error('Cache error:', e); }
-      // Force re-render with updated recs
+        var bedCache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        bedCache[payload.bed_id] = fullRecord;
+        localStorage.setItem('kmch-beds-cache', JSON.stringify(bedCache));
+      } catch(e){}
       renderGrid();
-      if(typeof renderAllPatients === 'function') renderAllPatients();
-      // Update stats manually
-      var occEl=document.getElementById('s-occ');
-      var maleEl=document.getElementById('s-male');
-      var femaleEl=document.getElementById('s-female');
-      if(occEl) occEl.textContent=recs.filter(isOcc).length;
-      if(maleEl) maleEl.textContent=recs.filter(function(r){ return isOcc(r)&&r.bed_id<=32; }).length;
-      if(femaleEl) femaleEl.textContent=recs.filter(function(r){ return isOcc(r)&&r.bed_id>=33&&r.bed_id<=60; }).length;
       closeAddPatient();
       toast('Patient saved locally — will sync when online ✓','ok');
       return;
@@ -2756,11 +2758,12 @@
   }
 
   // ── Save Particulars Only ──
-  async function saveParticularsOnly(){
+  async function saveParticularsOnly(notifyTarget){
     var nm=document.getElementById('ap-name').value.trim();
     if(!nm){ toast('Patient name is required','err'); return; }
     if(!apBedId){ toast('Select a bed','err'); return; }
     var ag=document.getElementById('ap-age').value;
+
     var payload={
       bed_id:apBedId, name:nm,
       age:ag!==''?parseInt(ag,10):null,
@@ -2768,15 +2771,83 @@
       address:document.getElementById('ap-addr').value.trim()||null,
       registration_no:document.getElementById('ap-reg').value.trim()||null,
       is_critical:false,
-      updated_by:me.id, updated_at:new Date().toISOString()
+      updated_by:me.id,
+      updated_at:new Date().toISOString()
     };
+
+    // Store pending notifications to send when online
+    var pendingNotifs = [];
+    var senderName = me.name + ' (' + me.role + ')';
+
+    if(notifyTarget === 'intern' || notifyTarget === 'both'){
+      pendingNotifs.push({
+        role: 'intern',
+        msg: '🩺 New patient ' + nm + ' added to Bed ' + apBedId + ' by ' + senderName + ' — please add clinical details',
+        bedId: apBedId,
+        name: nm,
+        type: 'info'
+      });
+    }
+    if(notifyTarget === 'nurse' || notifyTarget === 'both'){
+      pendingNotifs.push({
+        role: 'nurse',
+        msg: '🩺 Clinical details added for Bed ' + apBedId + ' — ' + nm + ' by ' + senderName + ' — please review',
+        bedId: apBedId,
+        name: nm,
+        type: 'info'
+      });
+    }
+
+    if(!isOnline){
+      // Save to offline queue
+      offlineQueue.push({
+        type: 'upsert',
+        payload: payload,
+        bed_id: payload.bed_id,
+        pendingNotifs: pendingNotifs,
+        ts: Date.now()
+      });
+      saveQueue();
+
+      // Update local state
+      var fullRecord = Object.assign({}, payload, {
+        id: 'offline-' + payload.bed_id,
+        is_critical: false,
+        diagnosis_status: 'pending'
+      });
+      var idx = recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
+      if(idx>=0) recs[idx] = fullRecord;
+      else recs.push(fullRecord);
+
+      // Update cache
+      try {
+        var bedCache = JSON.parse(localStorage.getItem('kmch-beds-cache')||'{}');
+        bedCache[payload.bed_id] = fullRecord;
+        localStorage.setItem('kmch-beds-cache', JSON.stringify(bedCache));
+      } catch(e){}
+
+      renderGrid();
+      closeAddPatient();
+      toast('Saved locally — notifications will send when online ✓', 'ok');
+      return;
+    }
+
+    // Online path
     busy(true);
-    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    var r = await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
     busy(false);
     if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
-    await sendNotification('intern','🩺 New patient '+nm+' added to Bed '+apBedId+' — please add clinical details',apBedId,nm,'info');
+
+    // Send notifications
+    for(var i=0; i<pendingNotifs.length; i++){
+      var pn = pendingNotifs[i];
+      await sendNotification(pn.role, pn.msg, pn.bedId, pn.name, pn.type);
+    }
+
     closeAddPatient();
-    toast('Patient saved. Intern notified ✓','ok');
+    var notifyMsg = notifyTarget==='both' ? 'Nurse & Intern notified ✓' :
+                    notifyTarget==='intern' ? 'Intern notified ✓' : 'Nurse notified ✓';
+    toast('Patient saved. ' + notifyMsg, 'ok');
     loadBeds();
   }
 
