@@ -1803,14 +1803,22 @@
       })
       .subscribe();
     rtNotifChannel = db.channel('notif-rt')
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},function(payload){
-        var n=payload.new;
-        if(!me) return;
-        if(n.recipient_role===me.role||n.recipient_role==='all'){
-          notifications.unshift(n);
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications'
+      }, function(payload){
+        var n = payload.new;
+        // Check if this notification is for me
+        if(n.recipient_role === me.role || n.recipient_role === 'all'){
           unreadCount++;
           updateBellBadge();
-          if(currentAppPage==='pg-notifications') renderNotifications();
+          // Show toast for new notification
+          toast('🔔 ' + (n.message||'New notification'), 'ok');
+          // If on notifications page refresh it
+          if(currentAppPage === 'pg-notifications'){
+            loadNotifications().then(renderNotifications);
+          }
         }
       })
       .subscribe();
@@ -2836,7 +2844,11 @@
     if(pageId==='pg-notifications'){
       showPage(pageId);
       if(unreadCount>0){
-        db.from('notifications').update({is_read:true}).eq('recipient_role',me.role).eq('is_read',false).then(function(){});
+        db.from('notifications')
+          .update({is_read:true})
+          .or('recipient_role.eq.'+me.role+',recipient_role.eq.all')
+          .eq('is_read',false)
+          .then(function(){});
         notifications.forEach(function(n){ n.is_read=true; });
         unreadCount=0;
         updateBellBadge();
