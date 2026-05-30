@@ -1646,6 +1646,26 @@
           if(r.error) failed.push(item);
         }
       } catch(e){ failed.push(item); }
+
+      // Handle offline discharge records
+      if(item.type === 'discharge'){
+        try {
+          var dr = await db.from('discharge_records').insert(item.payload);
+          if(dr.error){
+            console.error('Discharge sync error:', dr.error.message);
+            failed.push(item);
+          } else {
+            console.log('Discharge synced for bed:', item.payload.bed_id);
+            // Remove from offline discharges cache
+            try {
+              var offDis = JSON.parse(localStorage.getItem('kmch-offline-discharges')||'[]');
+              offDis = offDis.filter(function(d){ return d.bed_id !== item.payload.bed_id; });
+              localStorage.setItem('kmch-offline-discharges', JSON.stringify(offDis));
+            } catch(e){}
+          }
+        } catch(e){ failed.push(item); }
+        continue;
+      }
     }
     offlineQueue = failed;
     saveQueue();
@@ -2746,6 +2766,47 @@
       discharge_summary:summaryTxt,
     };
 
+    if(!isOnline){
+      // Save discharge record locally
+      var offlineDischarge = {
+        bed_id: curBed,
+        name: rec ? rec.name : '',
+        age: rec ? rec.age : null,
+        sex: rec ? rec.sex : null,
+        provisional_dx: rec ? rec.provisional_dx : null,
+        discharge_type: discType,
+        refer_to: discReferTo || null,
+        transfer_to: discTransferTo || null,
+        discharge_advice: discAdvice || null,
+        discharged_at: new Date().toISOString(),
+        discharged_by_name: me.name + ' (' + me.role + ')',
+        discharged_by: me.id
+      };
+      try {
+        var offlineDischarges = JSON.parse(localStorage.getItem('kmch-offline-discharges')||'[]');
+        offlineDischarges.push(offlineDischarge);
+        localStorage.setItem('kmch-offline-discharges', JSON.stringify(offlineDischarges));
+      } catch(e){}
+
+      // Add to offline sync queue
+      offlineQueue.push({
+        type: 'discharge',
+        payload: offlineDischarge,
+        bed_id: curBed,
+        ts: Date.now()
+      });
+      saveQueue();
+
+      // Show final discharge modal
+      var fdcTitle = document.getElementById('fdc-title');
+      var fdcSub = document.getElementById('fdc-sub');
+      if(fdcTitle) fdcTitle.textContent = 'Discharge ' + (rec?rec.name:'Patient') + '?';
+      if(fdcSub) fdcSub.textContent = 'Bed ' + curBed + ' will be cleared (saved offline)';
+      closeModal('modal-disc');
+      document.getElementById('modal-final-discharge').style.display = 'flex';
+      return;
+    }
+
     var dr=await db.from('discharge_records').insert(drPayload).select('id').maybeSingle();
     busy(false);
     if(btn){ btn.disabled=false; btn.textContent='Confirm Discharge'; }
@@ -3390,15 +3451,42 @@
     // If offline, show cached stats or zeros
     if(!isOnline){
       try {
+        // Load cached online stats
         var cachedStats = JSON.parse(localStorage.getItem('kmch-stats-cache')||'null');
-        if(cachedStats){
-          var ids = ['s-advice','s-request','s-dorb','s-referred','s-transferred','s-absent','s-deceased'];
-          ids.forEach(function(id){
-            var el = document.getElementById(id);
-            if(el) el.textContent = cachedStats[id] || '0';
-          });
-        }
-      } catch(e){}
+        // Load offline discharge records
+        var offlineDischarges = JSON.parse(localStorage.getItem('kmch-offline-discharges')||'[]');
+
+        var ids = ['s-advice','s-request','s-dorb','s-referred','s-transferred','s-absent','s-deceased'];
+        var typeMap = {
+          's-advice':'advice',
+          's-request':'request',
+          's-dorb':'dorb',
+          's-referred':'refer',
+          's-transferred':'transfer',
+          's-absent':'absent',
+          's-deceased':'deceased'
+        };
+
+        ids.forEach(function(id){
+          var el = document.getElementById(id);
+          if(!el) return;
+          var cachedCount = cachedStats ? (parseInt(cachedStats[id])||0) : 0;
+          // Add offline discharges count
+          var offlineCount = offlineDischarges.filter(function(d){
+            return d.discharge_type === typeMap[id];
+          }).length;
+          el.textContent = cachedCount + offlineCount;
+        });
+
+        // Update current patients count from recs
+        var occEl = document.getElementById('s-occ');
+        if(occEl) occEl.textContent = recs.filter(isOcc).length;
+        var maleEl = document.getElementById('s-male');
+        if(maleEl) maleEl.textContent = recs.filter(function(r){ return isOcc(r)&&r.bed_id<=32; }).length;
+        var femaleEl = document.getElementById('s-female');
+        if(femaleEl) femaleEl.textContent = recs.filter(function(r){ return isOcc(r)&&r.bed_id>=33&&r.bed_id<=60; }).length;
+
+      } catch(e){ console.error('Offline stats error:', e); }
       return;
     }
 
@@ -3410,12 +3498,12 @@
     if(r.error){ console.error('loadTodayStats:',r.error.message); return; }
     todayDischarges=r.data||[];
     renderTodayStats();
-    // Cache stats for offline
+    // Cache discharge stats for offline
     try {
       var statsCache = {};
       ['s-advice','s-request','s-dorb','s-referred','s-transferred','s-absent','s-deceased'].forEach(function(id){
         var el = document.getElementById(id);
-        if(el) statsCache[id] = el.textContent;
+        if(el) statsCache[id] = el.textContent || '0';
       });
       localStorage.setItem('kmch-stats-cache', JSON.stringify(statsCache));
     } catch(e){}
