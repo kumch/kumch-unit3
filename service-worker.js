@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kumch-v2';
+const CACHE_NAME = 'kumch-v3';
 const CORE_ASSETS = [
   '/kumch-unit3/',
   '/kumch-unit3/index.html',
@@ -30,8 +30,6 @@ self.addEventListener('activate', function(e){
 
 self.addEventListener('fetch', function(e){
   var url = e.request.url;
-
-  // Always go to network for Supabase
   if(url.includes('supabase.co') || url.includes('supabase.in')){
     e.respondWith(
       fetch(e.request).catch(function(){
@@ -41,8 +39,6 @@ self.addEventListener('fetch', function(e){
     );
     return;
   }
-
-  // For app files: cache first, fallback to network
   e.respondWith(
     caches.match(e.request).then(function(cached){
       var networkFetch = fetch(e.request).then(function(response){
@@ -61,4 +57,46 @@ self.addEventListener('fetch', function(e){
 
 self.addEventListener('message', function(e){
   if(e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+// ── Push Notifications ──
+self.addEventListener('push', function(e){
+  var data = {};
+  try { data = e.data ? e.data.json() : {}; } catch(err){ data = {title:'KuMCH Unit 3', body: e.data ? e.data.text() : 'New notification'}; }
+
+  var title = data.title || 'KuMCH Unit 3';
+  var options = {
+    body: data.body || 'New notification',
+    icon: data.icon || '/kumch-unit3/icon-192.png',
+    badge: '/kumch-unit3/icon-192.png',
+    vibrate: [200, 100, 200],
+    tag: 'kumch-notification',
+    renotify: true,
+    data: { url: data.url || '/kumch-unit3/' },
+    actions: [
+      { action: 'open', title: 'Open App' },
+      { action: 'close', title: 'Dismiss' }
+    ]
+  };
+
+  e.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+self.addEventListener('notificationclick', function(e){
+  e.notification.close();
+  if(e.action === 'close') return;
+  var url = (e.notification.data && e.notification.data.url) || '/kumch-unit3/';
+  e.waitUntil(
+    clients.matchAll({type:'window', includeUncontrolled:true}).then(function(clientList){
+      for(var i=0; i<clientList.length; i++){
+        var client = clientList[i];
+        if(client.url.includes('kumch-unit3') && 'focus' in client){
+          return client.focus();
+        }
+      }
+      if(clients.openWindow) return clients.openWindow(url);
+    })
+  );
 });
