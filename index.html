@@ -1472,10 +1472,18 @@
   // ── Helpers ──
   function busy(on) { document.getElementById('overlay').classList.toggle('on', !!on); }
   var _tt = null;
-  function toast(msg, type) {
+  function toast(msg, type, duration) {
     var el = document.getElementById('toast');
     el.textContent = msg; el.className = 'on' + (type ? ' '+type : '');
-    clearTimeout(_tt); _tt = setTimeout(function(){ el.className=''; }, 2000);
+    el.style.opacity = '1';
+    el.style.pointerEvents = 'auto';
+    el.style.display = 'flex';
+    clearTimeout(_tt); _tt = setTimeout(function(){
+      el.className='';
+      el.style.display = 'none';
+      el.style.opacity = '0';
+      el.style.pointerEvents = 'none';
+    }, duration || 5000);
   }
   function showPage(id) {
     if(id !== 'pg-login' && id !== 'pg-detail'){ sessionStorage.setItem('lastPage', id); }
