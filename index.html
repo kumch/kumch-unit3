@@ -328,6 +328,7 @@
       body.app-mode #pg-search,
       body.app-mode #pg-notifications,
       body.app-mode #pg-export,
+      body.app-mode #pg-admin,
       body.app-mode #pg-detail { margin-left: 240px; }
     }
 
@@ -474,6 +475,10 @@
     <div class="sb-item" id="sb-export" onclick="navTo('pg-export')">
       <span class="sb-icon">📥</span>
       <span>Export Data</span>
+    </div>
+    <div class="sb-item" id="sb-admin" style="display:none" onclick="navTo('pg-admin')">
+      <span class="sb-icon">👤</span>
+      <span>User Management</span>
     </div>
     <div class="sb-divider"></div>
     <div class="sb-item" onclick="doSignOut()">
@@ -1029,6 +1034,75 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ════════ PAGE — ADMIN ════════ -->
+<div id="pg-admin" class="page">
+  <div class="pg-wrap">
+    <div style="padding:16px">
+      <h2 style="font-family:'Times New Roman',serif; color:#1E3A5F; margin-bottom:16px">👤 User Management</h2>
+
+      <!-- Add New User Card -->
+      <div style="background:white; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,.07)">
+        <div style="font-weight:700; font-size:15px; color:#1E3A5F; margin-bottom:14px">➕ Add New User</div>
+
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:4px">FULL NAME</label>
+          <input id="adm-name" type="text" placeholder="e.g. Dr Ahmed" style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box">
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:4px">EMAIL</label>
+          <input id="adm-email" type="email" placeholder="email@kumch.com" style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box">
+        </div>
+
+        <div style="margin-bottom:10px">
+          <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:4px">PASSWORD</label>
+          <input id="adm-pass" type="password" placeholder="Min 6 characters" style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box">
+        </div>
+
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:8px">ROLE</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="admSetRole('nurse')" id="adm-role-nurse" style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">🩺 Nurse</button>
+            <button onclick="admSetRole('intern')" id="adm-role-intern" style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">👨‍⚕️ Intern</button>
+            <button onclick="admSetRole('midlevel')" id="adm-role-midlevel" style="flex:1;min-width:80px;padding:10px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer;background:white;color:#374151">👩‍⚕️ Midlevel</button>
+          </div>
+        </div>
+
+        <button onclick="admCreateUser()" style="width:100%;padding:14px;background:#3B82F6;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:15px;font-weight:700;cursor:pointer;min-height:52px">
+          ✅ Create User
+        </button>
+      </div>
+
+      <!-- Users List Card -->
+      <div style="background:white; border-radius:12px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.07)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div style="font-weight:700;font-size:15px;color:#1E3A5F">👥 Existing Users</div>
+          <button onclick="admLoadUsers()" style="padding:8px 14px;background:#F3F4F6;border:none;border-radius:8px;font-family:'Times New Roman',serif;font-size:13px;font-weight:600;cursor:pointer">🔄 Refresh</button>
+        </div>
+        <div id="adm-users-list">
+          <div style="text-align:center;color:#9CA3AF;padding:20px">Loading users...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div id="modal-change-pass" class="modal-bg" style="display:none">
+  <div class="modal-card" style="max-width:360px">
+    <div class="modal-title">🔑 Change Password</div>
+    <div id="adm-edit-username" style="color:#6B7280;font-size:14px;margin-bottom:14px"></div>
+    <input id="adm-new-pass" type="password" placeholder="New password (min 6 chars)" style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box;margin-bottom:14px">
+    <button onclick="admUpdatePassword()" style="width:100%;padding:14px;background:#3B82F6;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px">
+      ✅ Update Password
+    </button>
+    <button onclick="closeModal('modal-change-pass')" style="width:100%;padding:12px;background:#F3F4F6;color:#374151;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;cursor:pointer">
+      Cancel
+    </button>
   </div>
 </div>
 
@@ -1841,6 +1915,22 @@
   }
 
   async function showAppFromState(){
+    if(me && me.role === 'admin'){
+      // Hide normal nav items
+      var normalItems = ['sb-dashboard','sb-all','sb-search','sb-notif','sb-export'];
+      normalItems.forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.style.display = 'none';
+      });
+      // Show admin nav
+      var admNav = document.getElementById('sb-admin');
+      if(admNav) admNav.style.display = 'flex';
+      currentAppPage = 'pg-admin';
+      showPage('pg-admin');
+      updateSidebarActive();
+      admLoadUsers();
+      return;
+    }
     currentAppPage = 'pg-beds';
     updateSidebarActive();
     var lastPage = sessionStorage.getItem('lastPage') || 'pg-beds';
@@ -3029,12 +3119,13 @@
     if(bd) bd.classList.remove('on');
   }
   function updateSidebarActive(){
-    var map={'pg-beds':'sb-dashboard','pg-all-patients':'sb-all','pg-search':'sb-search','pg-notifications':'sb-notif','pg-export':'sb-export'};
+    var map={'pg-beds':'sb-dashboard','pg-all-patients':'sb-all','pg-search':'sb-search','pg-notifications':'sb-notif','pg-export':'sb-export','pg-admin':'sb-admin'};
     document.querySelectorAll('.sb-item').forEach(function(el){ el.classList.remove('active'); });
     var id=map[currentAppPage];
     if(id){ var el=document.getElementById(id); if(el) el.classList.add('active'); }
   }
   function navTo(pageId){
+    if(pageId === 'pg-admin' && me && me.role !== 'admin') return;
     currentAppPage=pageId;
     if(window.innerWidth<769) closeSidebar();
     updateSidebarActive();
@@ -3541,6 +3632,109 @@
       alert('To install:\n1. Tap the 3-dot menu in Chrome\n2. Tap "Add to Home Screen"\n3. Tap "Add"');
     }
   }
+  // ── Admin ──
+  var admSelectedRole = '';
+  var admEditingUserId = '';
+
+  function closeModal(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  }
+
+  function admSetRole(role){
+    admSelectedRole = role;
+    ['nurse','intern','midlevel'].forEach(function(r){
+      var btn = document.getElementById('adm-role-'+r);
+      if(!btn) return;
+      if(r === role){
+        btn.style.background = '#3B82F6';
+        btn.style.color = 'white';
+        btn.style.borderColor = '#3B82F6';
+      } else {
+        btn.style.background = 'white';
+        btn.style.color = '#374151';
+        btn.style.borderColor = '#E5E7EB';
+      }
+    });
+  }
+
+  async function admCallFunction(action, data){
+    var session = await db.auth.getSession();
+    var token = session.data.session ? session.data.session.access_token : '';
+    var response = await fetch(
+      'https://gzgldhenfyoqctqnwgod.supabase.co/functions/v1/manage-users',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify(Object.assign({ action: action }, data))
+      }
+    );
+    return await response.json();
+  }
+
+  async function admCreateUser(){
+    var name = document.getElementById('adm-name').value.trim();
+    var email = document.getElementById('adm-email').value.trim();
+    var pass = document.getElementById('adm-pass').value;
+    if(!name){ toast('Enter full name','err'); return; }
+    if(!email){ toast('Enter email','err'); return; }
+    if(!pass || pass.length < 6){ toast('Password min 6 characters','err'); return; }
+    if(!admSelectedRole){ toast('Select a role','err'); return; }
+    busy(true);
+    var result = await admCallFunction('create', { name: name, email: email, password: pass, role: admSelectedRole });
+    busy(false);
+    if(result.error){ toast('Error: '+result.error,'err'); return; }
+    toast('User created successfully ✓','ok');
+    document.getElementById('adm-name').value = '';
+    document.getElementById('adm-email').value = '';
+    document.getElementById('adm-pass').value = '';
+    admSetRole('');
+    admLoadUsers();
+  }
+
+  async function admLoadUsers(){
+    var listEl = document.getElementById('adm-users-list');
+    if(!listEl) return;
+    listEl.innerHTML = '<div style="text-align:center;color:#9CA3AF;padding:20px">Loading...</div>';
+    var result = await admCallFunction('list', {});
+    if(result.error){ listEl.innerHTML = '<div style="color:#EF4444;padding:10px">'+result.error+'</div>'; return; }
+    var roleColors = {nurse:'#3B82F6', intern:'#8B5CF6', midlevel:'#10B981', admin:'#EF4444', supervisor:'#F59E0B'};
+    var roleLabels = {nurse:'Nurse', intern:'Intern', midlevel:'Midlevel', admin:'Admin', supervisor:'Supervisor'};
+    listEl.innerHTML = (result.users||[]).filter(function(u){ return u.role !== 'admin'; }).map(function(u){
+      var color = roleColors[u.role] || '#6B7280';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #F3F4F6;gap:8px">'
+        +'<div style="flex:1">'
+        +'<div style="font-weight:700;font-size:14px;color:#1E3A5F">'+esc(u.name)+'</div>'
+        +'<div style="font-size:12px;color:#6B7280">'+esc(u.email)+'</div>'
+        +'<span style="background:'+color+';color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">'+roleLabels[u.role]+'</span>'
+        +'</div>'
+        +'<button onclick="admShowChangePass(\''+u.id+'\',\''+esc(u.name)+'\')" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔑 Password</button>'
+        +'</div>';
+    }).join('') || '<div style="text-align:center;color:#9CA3AF;padding:20px">No users found</div>';
+  }
+
+  function admShowChangePass(userId, userName){
+    admEditingUserId = userId;
+    var el = document.getElementById('adm-edit-username');
+    if(el) el.textContent = 'Changing password for: ' + userName;
+    document.getElementById('adm-new-pass').value = '';
+    document.getElementById('modal-change-pass').style.display = 'flex';
+  }
+
+  async function admUpdatePassword(){
+    var pass = document.getElementById('adm-new-pass').value;
+    if(!pass || pass.length < 6){ toast('Password min 6 characters','err'); return; }
+    busy(true);
+    var result = await admCallFunction('update_password', { userId: admEditingUserId, password: pass });
+    busy(false);
+    if(result.error){ toast('Error: '+result.error,'err'); return; }
+    toast('Password updated ✓','ok');
+    closeModal('modal-change-pass');
+  }
+
 </script>
 </body>
 </html>
