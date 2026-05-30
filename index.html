@@ -448,9 +448,10 @@
   .msg-bubble.received .msg-content { background: #F3F4F6; color: #111827; border-bottom-left-radius: 4px; }
   .msg-bubble.supervisor .msg-content { background: #1E3A5F; color: white; border-bottom-left-radius: 4px; }
   .msg-meta { font-size: 11px; color: #9CA3AF; margin-top: 3px; font-family: 'Times New Roman', serif; }
-  .msg-ticks { font-size: 11px; margin-left: 4px; }
+  .msg-ticks { font-size: 12px; margin-left: 4px; letter-spacing: -2px; font-weight: 700; }
   .msg-ticks.delivered { color: #9CA3AF; }
-  .msg-ticks.seen { color: #10B981; }
+  .msg-ticks.seen { color: #10B981; text-shadow: 0 0 1px rgba(16,185,129,0.3); }
+  .msg-ticks[title] { cursor: help; }
   .msg-reply-box { margin-top: 6px; display: flex; gap: 6px; }
   .msg-reply-box input { flex: 1; padding: 6px 10px; border: 1.5px solid #E5E7EB; border-radius: 8px; font-family: 'Times New Roman', serif; font-size: 13px; outline: none; }
   .msg-reply-box button { padding: 6px 12px; background: #3B82F6; color: white; border: none; border-radius: 8px; font-family: 'Times New Roman', serif; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -2338,6 +2339,25 @@
           loadDashboardMessages();
           markMessagesAsSeen(curBed);
           try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+        }
+      })
+      .subscribe();
+
+    // Seen status realtime
+    db.channel('seen-rt-'+me.id)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'message_seen'
+      }, function(payload){
+        var seen = payload.new;
+        if(curBed){
+          var msg = patientComments.find(function(m){ return m.id === seen.comment_id; });
+          if(msg && msg.sender_id === me.id){
+            if(!msg.seen_by) msg.seen_by = [];
+            msg.seen_by.push(seen);
+            renderMessages();
+          }
         }
       })
       .subscribe();
@@ -4403,7 +4423,7 @@
     }
 
     var r = await db.from('patient_comments')
-      .select('*')
+      .select('*, seen_by:message_seen(user_id, seen_at, viewer:users(name, role))')
       .eq('bed_id', bedId)
       .order('created_at', {ascending: true});
 
@@ -4432,7 +4452,19 @@
       var isSupervisor = msg.sender_role === 'supervisor';
       var bubbleClass = isSent ? 'sent' : (isSupervisor ? 'supervisor' : 'received');
       var replies = patientComments.filter(function(r){ return r.reply_to === msg.id; });
-      var ticks = '<span class="msg-ticks delivered">✓✓</span>';
+      var ticks = '';
+      if(isSent){
+        var seenBy = msg.seen_by || [];
+        var seenByOthers = seenBy.filter(function(s){ return s.user_id !== me.id; });
+        if(seenByOthers.length > 0){
+          var seenNames = seenByOthers.map(function(s){
+            return s.viewer ? s.viewer.name : 'Someone';
+          }).join(', ');
+          ticks = '<span class="msg-ticks seen" title="Seen by: '+seenNames+'">✓✓</span>';
+        } else {
+          ticks = '<span class="msg-ticks delivered">✓✓</span>';
+        }
+      }
       var roleColors = {nurse:'#3B82F6',intern:'#8B5CF6',midlevel:'#10B981',supervisor:'#1E3A5F'};
       var roleColor = roleColors[msg.sender_role] || '#6B7280';
       var timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
@@ -4687,20 +4719,30 @@
   }
 
   async function markMessagesAsSeen(bedId){
+    if(!me || !isOnline) return;
+
     var myMsgs = patientComments.filter(function(m){
       return m.sender_id !== me.id &&
              m.target_roles &&
-             m.target_roles.indexOf(me.role) >= 0;
+             m.target_roles.indexOf(me.role) >= 0 &&
+             m.id && !String(m.id).startsWith('offline-');
     });
-    for(var i=0; i<myMsgs.length; i++){
-      try {
-        await db.from('message_seen').upsert({
-          comment_id: myMsgs[i].id,
-          user_id: me.id,
-          seen_at: new Date().toISOString()
-        }, {onConflict: 'comment_id,user_id'});
-      } catch(e){}
-    }
+
+    if(myMsgs.length === 0) return;
+
+    var seenRecords = myMsgs.map(function(m){
+      return {
+        comment_id: m.id,
+        user_id: me.id,
+        seen_at: new Date().toISOString()
+      };
+    });
+
+    try {
+      await db.from('message_seen')
+        .upsert(seenRecords, {onConflict:'comment_id,user_id', ignoreDuplicates:true});
+      await loadPatientMessages(bedId);
+    } catch(e){ console.warn('markMessagesAsSeen error:', e); }
   }
 
   function toggleSection(bodyId, arrowId){
