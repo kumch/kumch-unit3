@@ -1047,7 +1047,21 @@
         <div class="photo-ctrl"><div class="photo-btns"><button class="btn-ph" onclick="tri('fi-ap-mg-cam')">📷 Camera</button><button class="btn-ph" onclick="tri('fi-ap-mg-gal')">🖼 Gallery</button></div><div class="thumb-wrap" id="ap-tw-mgmt"><img class="thumb" id="ap-th-mgmt" src="" alt="" onclick="openPhotoModal(this.src)"><button class="btn-rm" onclick="clearApPhoto('mgmt')">✕</button></div></div>
       </div>
       <div class="modal-nav"><button class="btn-prev" onclick="apGoTo(2)">← Back</button><button class="btn-next btn-green" onclick="saveNewPatient()">💾 Save Patient</button></div>
-      <button class="btn-notify-intern" style="width:100%;padding:13px;margin-top:8px;background:#EDE9FE;color:#6D28D9;border:1.5px solid #C4B5FD;border-radius:10px;font-size:14px;font-weight:700;min-height:50px;cursor:pointer" onclick="saveParticularsOnly()">⏭️ Save &amp; Notify Intern</button>
+      <!-- Show for nurse and midlevel only: notify intern -->
+      <button id="btn-notify-intern" onclick="saveParticularsOnly()"
+        style="width:100%; padding:14px; background:#8B5CF6; color:white;
+        border:none; border-radius:10px; font-family:'Times New Roman',serif;
+        font-size:15px; font-weight:600; cursor:pointer; min-height:52px; margin-top:8px">
+        ⏭️ Save &amp; Notify Intern
+      </button>
+
+      <!-- Show for intern only: notify nurse -->
+      <button id="btn-notify-nurse" onclick="saveAndNotifyNurse()"
+        style="width:100%; padding:14px; background:#3B82F6; color:white;
+        border:none; border-radius:10px; font-family:'Times New Roman',serif;
+        font-size:15px; font-weight:600; cursor:pointer; min-height:52px; margin-top:8px">
+        ⏭️ Save &amp; Notify Nurse
+      </button>
     </div>
   </div>
 </div>
@@ -2229,6 +2243,12 @@
     var subs=['Step 1 of 3 — Select Bed','Step 2 of 3 — Patient Particulars','Step 3 of 3 — Clinical Details'];
     document.getElementById('ap-sub').textContent=subs[step-1];
 
+    // Show correct notify button based on role
+    var notifyInternBtn = document.getElementById('btn-notify-intern');
+    var notifyNurseBtn = document.getElementById('btn-notify-nurse');
+    if(notifyInternBtn) notifyInternBtn.style.display = (me&&(me.role==='nurse'||me.role==='midlevel')) ? 'block' : 'none';
+    if(notifyNurseBtn) notifyNurseBtn.style.display = (me&&me.role==='intern') ? 'block' : 'none';
+
     if(step===1){
       var map={};
       recs.forEach(function(r){ if(r.bed_id) map[r.bed_id]=r; });
@@ -2731,6 +2751,56 @@
     await sendNotification('intern','🩺 New patient '+nm+' added to Bed '+apBedId+' — please add clinical details',apBedId,nm,'info');
     closeAddPatient();
     toast('Patient saved. Intern notified ✓','ok');
+    loadBeds();
+  }
+
+  async function saveAndNotifyNurse(){
+    var nm=document.getElementById('ap-name').value.trim();
+    if(!nm){ toast('Patient name is required','err'); return; }
+    if(!apBedId){ toast('Select a bed','err'); return; }
+
+    // Save only clinical fields filled by intern
+    var ag=document.getElementById('ap-age').value;
+    var payload={
+      bed_id:apBedId, name:nm,
+      age:ag!==''?parseInt(ag,10):null,
+      sex:apSex||null,
+      address:document.getElementById('ap-addr').value.trim()||null,
+      registration_no:document.getElementById('ap-reg').value.trim()||null,
+      chief_complaints:document.getElementById('ap-cc').value.trim()||null,
+      on_examination:document.getElementById('ap-oe').value.trim()||null,
+      investigations:document.getElementById('ap-inv').value.trim()||null,
+      provisional_dx:document.getElementById('ap-dx').value.trim()||null,
+      management:document.getElementById('ap-mgmt').value.trim()||null,
+      is_critical:false,
+      updated_by:me.id,
+      updated_at:new Date().toISOString()
+    };
+
+    if(!isOnline){
+      offlineQueue.push({type:'upsert', payload:payload, bed_id:payload.bed_id, ts:Date.now()});
+      saveQueue();
+      var existing=recs.findIndex(function(x){ return x.bed_id===payload.bed_id; });
+      if(existing>=0) recs[existing]=Object.assign(recs[existing],payload);
+      else recs.push(payload);
+      renderGrid();
+      closeAddPatient();
+      toast('Saved locally. Nurse will be notified when online.','ok');
+      return;
+    }
+
+    busy(true);
+    var r=await db.from('patient_records').upsert(payload,{onConflict:'bed_id'}).select('*').maybeSingle();
+    busy(false);
+    if(r.error){ toast('Save failed: '+r.error.message,'err'); return; }
+
+    // Notify nurse
+    await sendNotification('nurse',
+      '🩺 Intern added clinical details for Bed '+apBedId+' — '+nm+' — please review patient particulars',
+      apBedId, nm, 'info');
+
+    closeAddPatient();
+    toast('Saved & nurse notified ✓','ok');
     loadBeds();
   }
 
