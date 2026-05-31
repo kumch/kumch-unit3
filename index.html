@@ -4670,24 +4670,24 @@
     if(!text){ toast('Type a message first','err'); return; }
     if(msgTargetRoles.length === 0){ toast('Select who to send to','err'); return; }
 
-    var msg = {
-      bed_id: curBed,
-      patient_name: rec ? rec.name : '',
+    var msgPayload = {
+      bed_id: parseInt(curBed),
+      patient_name: rec ? (rec.name||'') : '',
       message: text,
       sender_id: me.id,
       sender_name: me.name,
       sender_role: me.role,
-      target_roles: msgTargetRoles,
-      created_at: new Date().toISOString()
+      target_roles: msgTargetRoles.slice()
     };
 
     if(!isOnline){
-      msg.id = 'offline-msg-'+Date.now();
-      patientComments.push(msg);
+      msgPayload.id = 'offline-msg-'+Date.now();
+      msgPayload.created_at = new Date().toISOString();
+      patientComments.push(msgPayload);
       try {
         localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments));
         var offlineMsgsArr = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
-        offlineMsgsArr.push(msg);
+        offlineMsgsArr.push(msgPayload);
         localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgsArr));
       } catch(e){}
       document.getElementById('msg-input').value = '';
@@ -4696,20 +4696,43 @@
       return;
     }
 
-    var r = await db.from('patient_comments').insert(msg).select('*').single();
-    if(r.error){ toast('Failed to send: '+r.error.message,'err'); return; }
+    busy(true);
+    console.log('Sending message payload:', JSON.stringify(msgPayload));
+    var r = await db.from('patient_comments').insert(msgPayload).select('*').single();
+    console.log('Message send result:', JSON.stringify(r));
+    busy(false);
+
+    if(r.error){
+      console.error('Message send error:', r.error);
+      toast('Failed to send: '+r.error.message,'err');
+      return;
+    }
 
     patientComments.push(r.data);
     document.getElementById('msg-input').value = '';
+
+    // Reset target buttons
+    var sentToRoles = msgTargetRoles.slice();
+    msgTargetRoles.forEach(function(role){
+      var btn = document.getElementById('msg-target-'+role);
+      if(btn){
+        btn.style.background = 'white';
+        btn.style.color = '#374151';
+        btn.style.borderColor = '#E5E7EB';
+      }
+    });
+    msgTargetRoles = [];
+
     renderMessages();
 
-    var notifMsg = '💬 ' + me.name + ' (' + me.role + ') — Bed ' + curBed + ' ' + (rec?rec.name:'') + ': ' + text.substring(0,50);
-    for(var i=0; i<msgTargetRoles.length; i++){
-      await sendNotification(msgTargetRoles[i], notifMsg, curBed, rec?rec.name:'', 'info');
-      await sendPushNotification(msgTargetRoles[i], '💬 New Message', notifMsg);
+    var notifMsg = '💬 '+me.name+' ('+me.role+') — Bed '+curBed+' '+(rec?rec.name||'':'')+': '+text.substring(0,50);
+    for(var i=0; i<sentToRoles.length; i++){
+      await sendNotification(sentToRoles[i], notifMsg, parseInt(curBed), rec?rec.name||'':'', 'info');
+      await sendPushNotification(sentToRoles[i], '💬 New Message', notifMsg);
     }
 
     try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+    toast('Message sent ✓','ok');
   }
 
   async function replyToMessage(msgId){
