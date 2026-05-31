@@ -44,9 +44,11 @@ self.addEventListener('fetch', function(e){
       var networkFetch = fetch(e.request).then(function(response){
         if(response && response.status === 200){
           var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache){
-            cache.put(e.request, clone);
-          });
+          if(e.request.url.startsWith('http')){
+            caches.open(CACHE_NAME).then(function(cache){
+              cache.put(e.request, clone);
+            });
+          }
         }
         return response;
       }).catch(function(){ return cached; });

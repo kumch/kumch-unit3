@@ -1777,7 +1777,7 @@
   }
 
   // Check every 30 seconds
-  setInterval(checkOnlineStatus, 30000);
+  setInterval(checkOnlineStatus, 60000);
 
   // Keep navigator.onLine as backup
   window.addEventListener('online', function(){
@@ -2091,16 +2091,20 @@
   async function init(){
     busy(true);
 
-    // Set up auth state listener
-    db.auth.onAuthStateChange(function(ev, session){
-      if(ev === 'SIGNED_OUT'){
-        me = null;
-        stopRealtime();
-        sessionStorage.clear();
-        try { localStorage.removeItem('kmch-user-profile'); } catch(e){}
-        showPage('pg-login');
-      }
-    });
+    // Set up auth state listener (only once)
+    var authListenerSet = false;
+    if(!authListenerSet){
+      authListenerSet = true;
+      db.auth.onAuthStateChange(function(ev, session){
+        if(ev === 'SIGNED_OUT'){
+          me = null;
+          stopRealtime();
+          sessionStorage.clear();
+          try { localStorage.removeItem('kmch-user-profile'); } catch(e){}
+          showPage('pg-login');
+        }
+      });
+    }
 
     // Check if offline first
     var onlineCheck = await checkOnlineStatus();
@@ -4751,10 +4755,14 @@
   async function replyToMessage(msgId){
     var bedId = curBed || parseInt(sessionStorage.getItem('currentBed'));
     var input = document.getElementById('reply-msg-'+msgId);
-    if(!input || !input.value.trim()){ toast('Type a reply','err'); return; }
+    if(!input){
+      console.error('Reply input not found for:', msgId);
+      return;
+    }
+    if(!input.value.trim()){ toast('Type a reply','err'); return; }
     var text = input.value.trim();
     var original = patientComments.find(function(m){ return m.id === msgId; });
-    if(!original) return;
+    if(!original){ toast('Original message not found','err'); return; }
 
     var reply = {
       bed_id: bedId,
