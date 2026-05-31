@@ -1104,7 +1104,7 @@
         </div>
         <span class="sec-arrow" id="msg-arrow">▼</span>
       </div>
-      <div id="msg-body" style="padding:0 16px 16px">
+      <div id="msg-body" style="padding:0 16px 16px; display:block">
 
         <!-- Messages list -->
         <div id="msg-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
@@ -1119,7 +1119,9 @@
           </div>
           <div style="display:flex;gap:8px;align-items:flex-end">
             <textarea id="msg-input" rows="2" placeholder="Type a message..."
-              style="flex:1;padding:10px;border:1.5px solid #E5E7EB;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;resize:none;outline:none"></textarea>
+              onclick="event.stopPropagation()"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPatientMessage();}"
+              style="flex:1;padding:10px;border:1.5px solid #E5E7EB;border-radius:10px;font-family:'Times New Roman',serif;font-size:16px;resize:none;outline:none"></textarea>
             <button onclick="sendPatientMessage()"
               style="padding:10px 16px;background:#3B82F6;color:white;border:none;border-radius:10px;font-family:'Times New Roman',serif;font-size:14px;font-weight:700;cursor:pointer;min-height:48px;white-space:nowrap">
               📤 Send
@@ -4544,9 +4546,13 @@
         (msg.target_roles && msg.target_roles.indexOf(me.role) >= 0)
       );
       if(canReply){
-        html += '<div class="msg-reply-box">';
-        html += '<input id="reply-msg-'+msg.id+'" type="text" placeholder="Reply...">';
-        html += '<button onclick="replyToMessage(\''+msg.id+'\')">↩️ Reply</button>';
+        html += '<div class="msg-reply-box" onclick="event.stopPropagation()">';
+        html += '<input id="reply-msg-'+msg.id+'" type="text" placeholder="Reply..." '
+          +'onclick="event.stopPropagation()" '
+          +'onkeydown="if(event.key===\'Enter\'){event.preventDefault();replyToMessage(\''+msg.id+'\');}" '
+          +'style="font-size:16px">';
+        html += '<button onclick="event.stopPropagation();replyToMessage(\''+msg.id+'\')" '
+          +'style="min-height:44px;min-width:60px">↩️</button>';
         html += '</div>';
       }
 
