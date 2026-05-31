@@ -1269,6 +1269,12 @@
         style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box">
     </div>
 
+    <div style="margin-bottom:10px">
+      <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:4px">EMAIL</label>
+      <input id="adm-edit-email" type="email" placeholder="email@kumch.com"
+        style="width:100%;padding:12px;border:1.5px solid #E5E7EB;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;box-sizing:border-box">
+    </div>
+
     <div style="margin-bottom:14px">
       <label style="font-size:12px;font-weight:600;color:#6B7280;display:block;margin-bottom:8px">ROLE</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -4287,7 +4293,7 @@
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:6px">'
         +'<button onclick="admShowChangePass(\''+u.id+'\',\''+esc(u.name)+'\')" style="padding:8px 12px;background:#F3F4F6;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🔑 Password</button>'
-        +'<button onclick="admShowEditName(\''+u.id+'\',\''+esc(u.name)+'\',\''+u.role+'\')" style="padding:8px 12px;background:#EFF6FF;color:#3B82F6;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✏️ Edit</button>'
+        +'<button onclick="admShowEditName(\''+u.id+'\',\''+esc(u.name)+'\',\''+u.role+'\',\''+esc(u.email||'')+'\')" style="padding:8px 12px;background:#EFF6FF;color:#3B82F6;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✏️ Edit</button>'
         +'<button onclick="admConfirmDelete(\''+u.id+'\',\''+esc(u.name)+'\')" style="padding:8px 12px;background:#FEE2E2;color:#EF4444;border:none;border-radius:8px;font-family:\'Times New Roman\',serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">🗑️ Remove</button>'
         +'</div>'
         +'</div>';
@@ -4334,27 +4340,46 @@
     });
   }
 
-  function admShowEditName(userId, userName, userRole){
+  function admShowEditName(userId, userName, userRole, userEmail){
     admEditingUserId = userId;
     admEditingRole = userRole;
     var sub = document.getElementById('adm-edit-user-sub');
     if(sub) sub.textContent = 'Editing: ' + userName;
     var nameInput = document.getElementById('adm-edit-name');
     if(nameInput) nameInput.value = userName;
+    var emailInput = document.getElementById('adm-edit-email');
+    if(emailInput) emailInput.value = userEmail || '';
     admSetEditRole(userRole);
     document.getElementById('modal-edit-user').style.display = 'flex';
   }
 
   async function admUpdateProfile(){
     var name = document.getElementById('adm-edit-name').value.trim();
+    var email = document.getElementById('adm-edit-email').value.trim();
     if(!name){ toast('Name cannot be empty','err'); return; }
     if(!admEditingRole){ toast('Select a role','err'); return; }
     busy(true);
+
     var result = await admCallFunction('update_profile', {
       userId: admEditingUserId,
       name: name,
       role: admEditingRole
     });
+
+    if(email){
+      var emailResult = await admCallFunction('update_email', {
+        userId: admEditingUserId,
+        email: email
+      });
+      if(emailResult.error){
+        busy(false);
+        toast('Profile saved but email update failed: '+emailResult.error,'err');
+        closeModal('modal-edit-user');
+        admLoadUsers();
+        return;
+      }
+    }
+
     busy(false);
     if(result.error){ toast('Error: '+result.error,'err'); return; }
     toast('User updated successfully ✓','ok');
