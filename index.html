@@ -1137,7 +1137,13 @@
 <div id="pg-admin" class="page">
   <div class="pg-wrap">
     <div style="padding:16px">
-      <h2 style="font-family:'Times New Roman',serif; color:#1E3A5F; margin-bottom:16px">👤 User Management</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2 style="font-family:'Times New Roman',serif;color:#1E3A5F;margin:0">👤 User Management</h2>
+        <button onclick="doSignOut()"
+          style="padding:10px 16px;background:#FEE2E2;color:#EF4444;border:none;border-radius:8px;font-family:'Times New Roman',serif;font-size:14px;font-weight:600;cursor:pointer">
+          🚪 Sign Out
+        </button>
+      </div>
 
       <!-- Add New User Card -->
       <div style="background:white; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 1px 4px rgba(0,0,0,.07)">
@@ -2216,6 +2222,12 @@
         var el = document.getElementById(id);
         if(el) el.style.display = 'none';
       });
+      // Make sure sign out button is always visible for admin
+      var signoutEl = document.getElementById('sb-signout');
+      if(signoutEl) signoutEl.style.display = 'flex';
+      // Show sidebar for admin
+      var sidebar = document.getElementById('sidebar');
+      if(sidebar) sidebar.style.display = '';
       // Show admin nav
       var admNav = document.getElementById('sb-admin');
       if(admNav) admNav.style.display = 'flex';
