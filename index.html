@@ -1750,20 +1750,20 @@
   }
 
   async function checkOnlineStatus(){
-    // Quick check first
-    if(!navigator.onLine){ isOnline = false; updateOnlineStatus(); return false; }
+    if(!navigator.onLine){
+      isOnline = false;
+      updateOnlineStatus();
+      return false;
+    }
     try {
       var controller = new AbortController();
-      var timeoutId = setTimeout(function(){ controller.abort(); }, 2000);
-      var response = await fetch(
-        'https://www.google.com/generate_204',
-        {
-          method: 'GET',
-          cache: 'no-store',
-          mode: 'no-cors',
-          signal: controller.signal
-        }
-      );
+      var timeoutId = setTimeout(function(){ controller.abort(); }, 3000);
+      await fetch('https://www.google.com/generate_204', {
+        method: 'GET',
+        cache: 'no-store',
+        mode: 'no-cors',
+        signal: controller.signal
+      });
       clearTimeout(timeoutId);
       isOnline = true;
     } catch(e){
@@ -4666,11 +4666,15 @@
   }
 
   async function sendPatientMessage(){
-    var bedId = curBed || parseInt(sessionStorage.getItem('currentBed'));
+    var bedId = curBed;
+    if(!bedId){
+      bedId = parseInt(sessionStorage.getItem('currentBed'));
+    }
     if(!bedId){ toast('No bed selected','err'); return; }
     var text = document.getElementById('msg-input').value.trim();
     if(!text){ toast('Type a message first','err'); return; }
     if(msgTargetRoles.length === 0){ toast('Select who to send to','err'); return; }
+    if(!rec){ toast('No patient data','err'); return; }
 
     var msgPayload = {
       bed_id: parseInt(bedId),
