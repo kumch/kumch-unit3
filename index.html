@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
   <link rel="manifest" href="/kumch-unit3/manifest.json">
   <meta name="theme-color" content="#1E3A5F">
   <meta name="mobile-web-app-capable" content="yes">
@@ -2319,7 +2320,9 @@
   }
 
   // ── Realtime ──
-  function startRealtime(){
+  async function startRealtime(){
+    // Clean up ALL existing channels first
+    try { await db.removeAllChannels(); } catch(e){}
     stopRealtime();
     rtChannel = db.channel('ward-rt')
       .on('postgres_changes',{event:'*',schema:'public',table:'patient_records'},function(){
@@ -4753,37 +4756,45 @@
   }
 
   async function replyToMessage(msgId){
-    var bedId = curBed || parseInt(sessionStorage.getItem('currentBed'));
+    var bedId = curBed;
+    if(!bedId) bedId = parseInt(sessionStorage.getItem('currentBed'));
+    if(!bedId){ toast('No bed selected','err'); return; }
+
     var input = document.getElementById('reply-msg-'+msgId);
-    if(!input){
-      console.error('Reply input not found for:', msgId);
+    if(!input){ toast('Reply box not found','err'); return; }
+
+    var text = input.value.trim();
+    if(!text){ toast('Type a reply first','err'); return; }
+
+    var original = patientComments.find(function(m){
+      return String(m.id) === String(msgId);
+    });
+    if(!original){
+      toast('Cannot find original message','err');
+      console.error('msgId not found:', msgId, 'available:', patientComments.map(function(m){ return m.id; }));
       return;
     }
-    if(!input.value.trim()){ toast('Type a reply','err'); return; }
-    var text = input.value.trim();
-    var original = patientComments.find(function(m){ return m.id === msgId; });
-    if(!original){ toast('Original message not found','err'); return; }
 
-    var reply = {
-      bed_id: bedId,
-      patient_name: rec ? rec.name : '',
+    var replyPayload = {
+      bed_id: parseInt(bedId),
+      patient_name: rec ? (rec.name||'') : '',
       message: text,
       sender_id: me.id,
       sender_name: me.name,
       sender_role: me.role,
       target_roles: [original.sender_role],
-      reply_to: msgId,
-      created_at: new Date().toISOString()
+      reply_to: msgId
     };
 
     if(!isOnline){
-      reply.id = 'offline-reply-'+Date.now();
-      patientComments.push(reply);
+      replyPayload.id = 'offline-reply-'+Date.now();
+      replyPayload.created_at = new Date().toISOString();
+      patientComments.push(replyPayload);
       try {
         localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments));
-        var offlineMsgsArr = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
-        offlineMsgsArr.push(reply);
-        localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgsArr));
+        var offlineMsgs = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
+        offlineMsgs.push(replyPayload);
+        localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgs));
       } catch(e){}
       input.value = '';
       renderMessages();
@@ -4791,18 +4802,26 @@
       return;
     }
 
-    var r = await db.from('patient_comments').insert(reply).select('*').single();
-    if(r.error){ toast('Failed to reply: '+r.error.message,'err'); return; }
+    busy(true);
+    var r = await db.from('patient_comments').insert(replyPayload).select('*').single();
+    busy(false);
+
+    if(r.error){
+      console.error('Reply error:', r.error);
+      toast('Failed to reply: '+r.error.message,'err');
+      return;
+    }
 
     patientComments.push(r.data);
     input.value = '';
     renderMessages();
 
-    var notifMsg = '↩️ ' + me.name + ' replied — Bed ' + bedId + ': ' + text.substring(0,50);
-    await sendNotification(original.sender_role, notifMsg, bedId, rec?rec.name:'', 'info');
+    var notifMsg = '↩️ '+me.name+' replied — Bed '+bedId+': '+text.substring(0,50);
+    await sendNotification(original.sender_role, notifMsg, parseInt(bedId), rec?rec.name||'':'', 'info');
     await sendPushNotification(original.sender_role, '↩️ Reply to your message', notifMsg);
 
     try { localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments)); } catch(e){}
+    toast('Reply sent ✓','ok');
   }
 
   async function markMessagesAsSeen(bedId){
