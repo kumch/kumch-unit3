@@ -520,7 +520,7 @@
       <span>User Management</span>
     </div>
     <div class="sb-divider"></div>
-    <div class="sb-item" onclick="doSignOut()">
+    <div class="sb-item" id="sb-signout" onclick="doSignOut()" style="margin-top:auto">
       <span class="sb-icon">🚪</span> Sign Out
     </div>
   </div>
@@ -2217,6 +2217,9 @@
       showPage('pg-admin');
       updateSidebarActive();
       admLoadUsers();
+      // Make sure sign out is always visible
+      var signoutBtn = document.getElementById('sb-signout');
+      if(signoutBtn) signoutBtn.style.display = 'flex';
       return;
     }
     currentAppPage = 'pg-beds';
@@ -2252,6 +2255,8 @@
 
   async function doSignout_internal(){
     try { localStorage.removeItem('kmch-user-profile'); } catch(e){}
+    try { localStorage.removeItem('kmch-beds-cache'); } catch(e){}
+    sessionStorage.clear();
     stopRealtime(); await db.auth.signOut(); me=null;
     document.body.classList.remove('app-mode');
     closeSidebar();
