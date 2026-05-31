@@ -1756,11 +1756,11 @@
       var controller = new AbortController();
       var timeoutId = setTimeout(function(){ controller.abort(); }, 2000);
       var response = await fetch(
-        'https://gzgldhenfyoqctqnwgod.supabase.co/rest/v1/',
+        'https://www.google.com/generate_204',
         {
-          method: 'HEAD',
-          headers: {'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6Z2xkaGVuZnlvcWN0cW53Z29kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NjcwNjUsImV4cCI6MjA5NTM0MzA2NX0.B3t5i7z5BzjOeW9VjmraPLr5CTT0e8iEhaJ_M9qqF-U'},
+          method: 'GET',
           cache: 'no-store',
+          mode: 'no-cors',
           signal: controller.signal
         }
       );
@@ -4666,12 +4666,14 @@
   }
 
   async function sendPatientMessage(){
+    var bedId = curBed || parseInt(sessionStorage.getItem('currentBed'));
+    if(!bedId){ toast('No bed selected','err'); return; }
     var text = document.getElementById('msg-input').value.trim();
     if(!text){ toast('Type a message first','err'); return; }
     if(msgTargetRoles.length === 0){ toast('Select who to send to','err'); return; }
 
     var msgPayload = {
-      bed_id: parseInt(curBed),
+      bed_id: parseInt(bedId),
       patient_name: rec ? (rec.name||'') : '',
       message: text,
       sender_id: me.id,
@@ -4685,7 +4687,7 @@
       msgPayload.created_at = new Date().toISOString();
       patientComments.push(msgPayload);
       try {
-        localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments));
+        localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments));
         var offlineMsgsArr = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
         offlineMsgsArr.push(msgPayload);
         localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgsArr));
@@ -4725,17 +4727,18 @@
 
     renderMessages();
 
-    var notifMsg = '💬 '+me.name+' ('+me.role+') — Bed '+curBed+' '+(rec?rec.name||'':'')+': '+text.substring(0,50);
+    var notifMsg = '💬 '+me.name+' ('+me.role+') — Bed '+bedId+' '+(rec?rec.name||'':'')+': '+text.substring(0,50);
     for(var i=0; i<sentToRoles.length; i++){
-      await sendNotification(sentToRoles[i], notifMsg, parseInt(curBed), rec?rec.name||'':'', 'info');
+      await sendNotification(sentToRoles[i], notifMsg, parseInt(bedId), rec?rec.name||'':'', 'info');
       await sendPushNotification(sentToRoles[i], '💬 New Message', notifMsg);
     }
 
-    try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+    try { localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments)); } catch(e){}
     toast('Message sent ✓','ok');
   }
 
   async function replyToMessage(msgId){
+    var bedId = curBed || parseInt(sessionStorage.getItem('currentBed'));
     var input = document.getElementById('reply-msg-'+msgId);
     if(!input || !input.value.trim()){ toast('Type a reply','err'); return; }
     var text = input.value.trim();
@@ -4743,7 +4746,7 @@
     if(!original) return;
 
     var reply = {
-      bed_id: curBed,
+      bed_id: bedId,
       patient_name: rec ? rec.name : '',
       message: text,
       sender_id: me.id,
@@ -4758,7 +4761,7 @@
       reply.id = 'offline-reply-'+Date.now();
       patientComments.push(reply);
       try {
-        localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments));
+        localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments));
         var offlineMsgsArr = JSON.parse(localStorage.getItem('kmch-offline-messages')||'[]');
         offlineMsgsArr.push(reply);
         localStorage.setItem('kmch-offline-messages', JSON.stringify(offlineMsgsArr));
@@ -4776,11 +4779,11 @@
     input.value = '';
     renderMessages();
 
-    var notifMsg = '↩️ ' + me.name + ' replied — Bed ' + curBed + ': ' + text.substring(0,50);
-    await sendNotification(original.sender_role, notifMsg, curBed, rec?rec.name:'', 'info');
+    var notifMsg = '↩️ ' + me.name + ' replied — Bed ' + bedId + ': ' + text.substring(0,50);
+    await sendNotification(original.sender_role, notifMsg, bedId, rec?rec.name:'', 'info');
     await sendPushNotification(original.sender_role, '↩️ Reply to your message', notifMsg);
 
-    try { localStorage.setItem('kmch-comments-'+curBed, JSON.stringify(patientComments)); } catch(e){}
+    try { localStorage.setItem('kmch-comments-'+bedId, JSON.stringify(patientComments)); } catch(e){}
   }
 
   async function markMessagesAsSeen(bedId){
